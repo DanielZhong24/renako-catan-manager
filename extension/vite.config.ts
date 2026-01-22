@@ -8,9 +8,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         content: 'src/content.ts',
+        background: 'src/background.ts', // <--- ADD THIS LINE
       },
       output: {
-        // This forces the file to be named exactly content.js
         entryFileNames: '[name].js', 
         assetFileNames: '[name].[ext]',
         chunkFileNames: '[name].js',
