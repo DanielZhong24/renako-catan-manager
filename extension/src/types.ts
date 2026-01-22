@@ -3,6 +3,7 @@ export interface Player {
   vp: number;
   isBot: boolean;
   isWinner: boolean;
+  isMe:boolean;
 }
 
 export interface TableData {
@@ -13,6 +14,7 @@ export interface TableData {
 
 export interface GameStats {
   lobbyId: string;
+  discordId:string;
   timestamp: string;
   overview: Player[];
   dice_stats: Record<string, number>;

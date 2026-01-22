@@ -109,7 +109,8 @@ export class OverviewScraper extends BaseScraper implements IScraperStrategy {
           name: nameEl.innerText.trim(),
           vp: parseInt(vpEl.innerText) || 0,
           isBot: !!row.querySelector('img[src*="icon_bot"]'),
-          isWinner: false 
+          isWinner: false ,
+          isMe: false
         };
       });
 
