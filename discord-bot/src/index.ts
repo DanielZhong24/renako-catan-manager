@@ -1,58 +1,36 @@
-import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+// bot/src/index.ts
+import { Client, GatewayIntentBits } from 'discord.js';
 import pkg from 'pg';
-const { Pool } = pkg;
 import * as dotenv from 'dotenv';
+import { CommandHandler } from './core/CommandHandler.js';
 
 dotenv.config();
+const { Pool } = pkg;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const handler = new CommandHandler();
 
-// Connect to the same DB as the backend
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+// Use a top-level async block to load commands before logging in
+(async () => {
+    const commands = await handler.load();
 
-client.once('ready', () => {
-    console.log(`🤖 Bot logged in as ${client.user?.tag}`);
-});
+    client.on('interactionCreate', async (interaction) => {
+        if (!interaction.isChatInputCommand()) return;
 
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-
-    if (interaction.commandName === 'stats') {
-        await interaction.deferReply();
+        const command = commands.get(interaction.commandName);
+        if (!command) return;
 
         try {
-            const discordId = interaction.user.id;
-            
-            // Query the view we created in our init.sql
-            const result = await pool.query(
-                'SELECT * FROM user_stats_view WHERE discord_id = $1',
-                [discordId]
-            );
-
-            if (result.rows.length === 0) {
-                return interaction.editReply("No games recorded! Link your extension and play a game first.");
-            }
-
-            const stats = result.rows[0];
-            const embed = new EmbedBuilder()
-                .setTitle(`📊 Catan Stats: ${stats.username}`)
-                .setColor('#E67E22')
-                .addFields(
-                    { name: 'Games', value: String(stats.total_games), inline: true },
-                    { name: 'Wins', value: String(stats.wins), inline: true },
-                    { name: 'Win Rate', value: `${stats.win_rate}%`, inline: true },
-                    { name: 'Avg VP', value: String(stats.avg_vp), inline: true }
-                )
-                .setTimestamp();
-
-            await interaction.editReply({ embeds: [embed] });
+            await command.execute(interaction, { pool });
         } catch (error) {
             console.error(error);
-            await interaction.editReply("Error fetching stats.");
+            const msg = { content: 'Error executing command!', ephemeral: true };
+            interaction.deferred || interaction.replied 
+                ? await interaction.followUp(msg) 
+                : await interaction.reply(msg);
         }
-    }
-});
+    });
 
-client.login(process.env.DISCORD_TOKEN);
+    client.login(process.env.DISCORD_TOKEN);
+})();
