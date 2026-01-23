@@ -52,5 +52,25 @@ export const UserService = {
         const query = `SELECT discord_id, username, api_key FROM users WHERE discord_id = $1`;
         const res = await pool.query(query, [discordId]);
         return res.rows[0]; 
+    },
+
+    async getHistoryByDiscordId(discordId: string) {
+        const query = `
+            SELECT 
+                g.id as game_id,
+                g.game_timestamp,
+                ps.vp,
+                ps.is_winner,
+                ps.player_name
+            FROM users u
+            JOIN player_stats ps ON u.discord_id = ps.uploader_id
+            JOIN games g ON ps.game_id = g.id
+            WHERE u.discord_id = $1 
+            AND ps.is_me = true  -- Only show YOUR results
+            ORDER BY g.game_timestamp DESC
+            LIMIT 5;
+        `;
+        const res = await pool.query(query, [discordId]);
+        return res.rows;
     }
 };

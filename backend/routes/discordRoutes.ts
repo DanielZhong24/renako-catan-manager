@@ -13,12 +13,12 @@ discordRoutes.get('/stats/:discordId', async (c) => {
     return c.json(stats);
 });
 
-// discordRoutes.get('/history/:discordId', async (c) => {
-//     const discordId = c.req.param('discordId');
-//     // Assuming you add this method to your UserService
-//     const history = await UserService.getHistoryByDiscordId(discordId);
-//     return c.json(history);
-// });
+discordRoutes.get('/history/:discordId', async (c) => {
+    const discordId = c.req.param('discordId');
+    // Assuming you add this method to your UserService
+    const history = await UserService.getHistoryByDiscordId(discordId);
+    return c.json(history);
+});
 discordRoutes.get('/user/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
     const user = await UserService.getUserById(discordId);
