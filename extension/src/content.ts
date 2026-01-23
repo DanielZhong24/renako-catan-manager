@@ -99,6 +99,8 @@ const processAndSend = async (currentLobby: string) => {
             resource_stats: zipTable(stats.resource_stats)
         };
 
+        console.log(payload);
+
         const response = await fetch('http://localhost:3000/api/games/ingest', {
             method: 'POST',
             headers: { 

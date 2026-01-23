@@ -35,7 +35,7 @@ export class StatsCommand implements IBotCommand {
             }
 
             const embed = new EmbedBuilder()
-                .setAuthor({ name: 'CatanStats Personal Report (Group B)' })
+                .setAuthor({ name: 'CatanStats Personal Report'})
                 .setTitle(`📊 ${interaction.user.username}'s Results... I think?`)
                 .setColor('#FFB6C1')
                 .setThumbnail(interaction.user.displayAvatarURL())
