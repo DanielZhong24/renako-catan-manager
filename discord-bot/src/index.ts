@@ -1,34 +1,35 @@
 // bot/src/index.ts
 import { Client, GatewayIntentBits } from 'discord.js';
-import pkg from 'pg';
 import * as dotenv from 'dotenv';
 import { CommandHandler } from './core/CommandHandler.js';
+import { ApiClient } from './core/ApiClient.js';
 
 dotenv.config();
-const { Pool } = pkg;
-
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const api = new ApiClient(process.env.API_BASE_URL || "http://api:3000");
 const handler = new CommandHandler();
 
-// Use a top-level async block to load commands before logging in
 (async () => {
+    // 1. Load your commands into memory
     const commands = await handler.load();
 
+    // 2. This function provides the 'interaction' variable
     client.on('interactionCreate', async (interaction) => {
+        
+        // 3. Ensure it's a slash command
         if (!interaction.isChatInputCommand()) return;
 
+        // 4. FIND the command. This defines the 'command' variable
         const command = commands.get(interaction.commandName);
+
         if (!command) return;
 
         try {
-            await command.execute(interaction, { pool });
+            // 5. Now 'command', 'interaction', and 'api' are all visible!
+            await command.execute(interaction, { api });
         } catch (error) {
             console.error(error);
-            const msg = { content: 'Error executing command!', ephemeral: true };
-            interaction.deferred || interaction.replied 
-                ? await interaction.followUp(msg) 
-                : await interaction.reply(msg);
+            await interaction.reply({ content: 'Error!', ephemeral: true });
         }
     });
 

@@ -65,3 +65,17 @@ SELECT
 FROM user_stats_view
 WHERE total_games > 0
 LIMIT 10;
+
+CREATE OR REPLACE VIEW history_view AS
+SELECT 
+    ps.uploader_id,
+    g.id AS game_id,
+    g.game_timestamp,
+    ps.player_name,
+    ps.vp,
+    ps.is_winner,
+    g.dice_stats->>'total_rolls' as total_rolls
+FROM player_stats ps
+JOIN games g ON ps.game_id = g.id
+WHERE ps.is_me = true
+ORDER BY g.game_timestamp DESC;

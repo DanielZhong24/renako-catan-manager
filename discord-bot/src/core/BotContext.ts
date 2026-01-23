@@ -1,5 +1,6 @@
-import { Pool } from 'pg';
+import { ApiClient } from './ApiClient.js';
 
 export interface BotContext {
-    pool: Pool;
+    api: ApiClient;
+
 }
