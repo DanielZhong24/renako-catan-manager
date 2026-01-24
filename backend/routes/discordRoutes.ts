@@ -1,10 +1,8 @@
-// backend/src/routes/discordRoutes.ts
 import { Hono } from 'hono';
 import { UserService } from '../services/userService.js';
 
 const discordRoutes = new Hono();
 
-// This endpoint is internal and used by the bot
 discordRoutes.get('/stats/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
     const stats = await UserService.getStatsByDiscordId(discordId);
@@ -15,7 +13,6 @@ discordRoutes.get('/stats/:discordId', async (c) => {
 
 discordRoutes.get('/history/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
-    // Assuming you add this method to your UserService
     const history = await UserService.getHistoryByDiscordId(discordId);
     return c.json(history);
 });
@@ -28,4 +25,17 @@ discordRoutes.get('/user/:discordId', async (c) => {
     }
     return c.json(user);
 });
+
+discordRoutes.get('/search', async (c) => {
+    const name = c.req.query('name');
+    
+    if (!name) return c.json({ error: 'name_required' }, 400);
+
+    const stats = await UserService.getStatsByCatanName(name);
+    
+    if (!stats) return c.json({ error: 'not_found' }, 404);
+    
+    return c.json(stats);
+});
+
 export default discordRoutes;

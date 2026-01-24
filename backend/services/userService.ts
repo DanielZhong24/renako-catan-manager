@@ -72,5 +72,23 @@ export const UserService = {
         `;
         const res = await pool.query(query, [discordId]);
         return res.rows;
-    }
+    },
+    async getStatsByCatanName(catanName: string) {
+        const query = `
+        SELECT 
+            player_name as catan_name,
+            is_bot,
+            COUNT(id)::int as total_games,
+            SUM(CASE WHEN is_winner THEN 1 ELSE 0 END)::int as wins,
+            COALESCE(ROUND(AVG(vp)::numeric, 2), 0)::float as avg_vp,
+            COALESCE(ROUND(((SUM(CASE WHEN is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(id), 0)) * 100)::numeric, 1), 0)::float as win_rate
+        FROM player_stats
+        WHERE player_name ILIKE $1 
+        GROUP BY player_name,is_bot;
+        `;
+        const res = await pool.query(query, [catanName]);
+        return res.rows[0];
+    },
+
+
 };
