@@ -23,8 +23,10 @@ export class LinkCommand implements IBotCommand {
                     .setDescription(`You are logged in as **${user.username}**.`)
                     .addFields({ name: 'Your Extension Key', value: `\`${user.api_key}\`` })
                     .setColor('#2ECC71');
-
-                await interaction.editReply({ embeds: [embed] });
+                const button = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                    new ButtonBuilder().setLabel("If you still need to connect...").setURL("http://localhost:3000/api/auth/login").setStyle(ButtonStyle.Link)
+                );
+                await interaction.editReply({ embeds: [embed],components:[button] });
             } else {
                 // CASE: User is NOT in the database (Not logged in)
                 const embed = new EmbedBuilder()
