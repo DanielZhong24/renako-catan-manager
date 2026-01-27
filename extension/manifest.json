@@ -2,15 +2,22 @@
   "manifest_version": 3,
   "name": "Colonist Game Logger",
   "version": "1.0",
-  "permissions": ["storage"],
+  "permissions": ["storage", "notifications"],
   "action":{
-    "default_popup":"popup.html"
+    "default_popup":"popup.html",
+    "default_icons": {
+      "16": "icons/disconnected.png",
+      "32": "icons/disconnected.png",
+      "48": "icons/disconnected.png",
+      "128": "icons/disconnected.png"
+    }
   },
   "host_permissions": [
-    "http://localhost:3000/*"
+    "http://localhost:3000/*",
+    "http://localhost/*"
   ],
   "externally_connectable": {
-    "matches": ["http://localhost:3000/*"]
+    "matches": ["http://localhost/*", "http://localhost:3000/*"]
   },
   "content_scripts": [
     {
