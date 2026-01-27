@@ -21,7 +21,10 @@ export default defineConfig({
   },
   plugins: [
     viteStaticCopy({
-      targets: [{ src: 'manifest.json', dest: '.' }]
+      targets: [
+        { src: 'manifest.json', dest: '.' },
+        { src: 'icons/*.png', dest: 'icons' }
+      ]
     }),
     tailwindcss()
   ],
