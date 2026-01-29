@@ -16,11 +16,24 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
   const user = await UserService.getUserByApiKey(apiKey);
   if (!user) return c.json({ success: false, error: 'Invalid API Key' }, 403);
 
-  // DEBUG 1: Is Zod returning data?
+  // Get data validated by Zod
   const data = c.req.valid('json');
   console.log(`[DEBUG ROUTE] Data validated. LobbyID: ${data?.lobbyId}`);
 
   try {
+    // Validate game has enough human players to prevent bot farming
+    const botCount = data.overview.filter((p: any) => p.isBot).length;
+    const totalPlayers = data.overview.length;
+    const humanCount = totalPlayers - botCount;
+
+    // Only reject 1 human with 3+ bots (clear bot farming)
+    if (humanCount === 1 && botCount >= 3) {
+      return c.json({ 
+        success: false, 
+        error: 'Bot Farming Detected: 1 human vs 3+ bots is not allowed.' 
+      }, 400);
+    }
+
     // Check for active session without consuming it - allows multiple games per session
     const session = await SessionService.getActiveSession(user.discord_id);
     const finalGuildId = session?.guild_id || 'GLOBAL';
