@@ -17,6 +17,48 @@ const STAT_MAP: Record<string, string> = {
 
 let isProcessingGame = false;
 let lastLoggedLobby: string | null = null;
+let failedLobbies = new Set<string>(); // Blacklist failed lobbies to prevent re-scraping
+
+/**
+ * Display an in-page notification banner to the user
+ */
+const showNotification = (message: string, type: 'error' | 'success' = 'error') => {
+    let banner = document.getElementById('catan-notification-banner');
+    
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'catan-notification-banner';
+        document.body.insertBefore(banner, document.body.firstChild);
+    }
+    
+    const bgColor = type === 'error' ? 'rgba(255, 59, 48, 0.95)' : 'rgba(76, 175, 80, 0.95)';
+    const icon = type === 'error' ? '⚠️' : '✅';
+    
+    banner.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${bgColor};
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+            word-wrap: break-word;
+            animation: slideDown 0.3s ease-out;
+        ">
+            ${icon} ${message}
+        </div>
+    `;
+    
+    // Auto-remove after 6 seconds
+    setTimeout(() => banner?.remove(), 6000);
+};
 
 const coordinator = new ScrapeCoordinator();
 coordinator.addStrategy(new OverviewScraper());
@@ -110,20 +152,52 @@ const processAndSend = async (currentLobby: string) => {
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error || `Server error: ${response.status}`;
+            
+            // Mark this lobby as logged even on error to prevent re-scraping
+            lastLoggedLobby = currentLobby;
+            
+            // Show error to user on-page
+            showNotification(`Game not recorded: ${errorMessage}`, 'error');
+            
+            // Notify the user through the extension popup with error details
+            chrome.runtime.sendMessage({ 
+                type: 'ERROR_NOTIFICATION',
+                error: errorMessage,
+                status: response.status
+            }).catch(() => {}); // Ignore if popup not open
+            
+            // Stop processing here - don't throw, just return
+            return;
+        }
 
-        console.log("[Catan Logger] Successfully uploaded game stats!");
+        const successData = await response.json();
+        console.log("[Catan Logger] Successfully uploaded game stats!", successData);
+        
+        // Show success to user on-page
+        showNotification('Game recorded successfully!', 'success');
+        
+        // Notify success through extension
+        chrome.runtime.sendMessage({ 
+            type: 'SUCCESS_NOTIFICATION',
+            message: 'Game recorded successfully!'
+        }).catch(() => {});
+        
         lastLoggedLobby = currentLobby;
 
     // Inside processAndSend catch block
     } catch (err) {
-    chrome.runtime.sendMessage({ type: 'STATUS_UPDATE', status: 'ERR' });
-    console.error("[Catan Logger] Scrape or Upload failed:", err);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        chrome.runtime.sendMessage({ type: 'STATUS_UPDATE', status: 'ERR', error: errorMsg });
+        console.error("[Catan Logger] Scrape or Upload failed:", err);
     } finally {
+        // Always mark as done and clean up, even if error occurred
         chrome.runtime.sendMessage({ type: 'STATUS_UPDATE', status: 'DONE' });
         setTimeout(() => { 
             chrome.runtime.sendMessage({ type: 'STATUS_UPDATE', status: 'CLEAR' });
-            isProcessingGame = false; 
+            isProcessingGame = false; // Critical: reset flag to allow future games
         }, 5000);
     }
 };
@@ -139,8 +213,8 @@ const observer = new MutationObserver(() => {
         lockIdentityInLobby();
     }
 
-    // 2. If end-game modal appears, trigger upload
-    if (modal && !isProcessingGame && lobbyId !== lastLoggedLobby) {
+    // 2. If end-game modal appears, trigger upload (but skip blacklisted lobbies)
+    if (modal && !isProcessingGame && lobbyId !== lastLoggedLobby && !failedLobbies.has(lobbyId)) {
         processAndSend(lobbyId);
     }
 });

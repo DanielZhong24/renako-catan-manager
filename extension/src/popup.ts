@@ -80,8 +80,16 @@ function showSuccessAnimation() {
 }
 
 // --- 2. INITIAL LOAD ---
-chrome.storage.local.get(['apiKey', 'discordId', 'connectionTimestamp'], (result) => {
-  const data = result as RenakoStorage;
+chrome.storage.local.get(['apiKey', 'discordId', 'connectionTimestamp', 'lastError'], (result) => {
+  const data = result as RenakoStorage & { lastError?: string };
+  
+  // Check for and display errors first
+  if (data.lastError) {
+    displayErrorMessage(data.lastError);
+    // Still show the account section even if there's an error
+    updateUI(data.apiKey, data.discordId);
+    return;
+  }
   
   // Check if this is a fresh connection (within last 5 seconds)
   const isFreshConnection = data.connectionTimestamp && 
@@ -134,6 +142,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // This will trigger the storage listener which handles animations
   }
 });
+
+// --- 4b. LISTEN FOR ERROR NOTIFICATIONS ---
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'ERROR_NOTIFICATION') {
+    const { error } = message;
+    console.error('Error notification received:', error);
+    displayErrorMessage(error);
+  }
+  
+  if (message.type === 'SUCCESS_NOTIFICATION') {
+    const { message: successMsg } = message;
+    displaySuccessMessage(successMsg);
+  }
+});
+
+// Function to display error message in popup
+function displayErrorMessage(errorText: string) {
+  // Create error banner if not exists
+  let errorBanner = document.getElementById('error-banner');
+  if (!errorBanner) {
+    errorBanner = document.createElement('div');
+    errorBanner.id = 'error-banner';
+    errorBanner.className = 'mb-4 p-3 rounded bg-red-900/30 border border-red-500 text-red-200 text-sm';
+    const mainContent = document.querySelector('main');
+    if (mainContent) mainContent.insertBefore(errorBanner, mainContent.firstChild);
+  }
+  
+  errorBanner.innerHTML = `
+    <strong class="block mb-1">⚠️ Game Submission Failed</strong>
+    <span>${errorText}</span>
+    <button id="close-error" class="float-right text-xs underline">Dismiss</button>
+  `;
+  
+  document.getElementById('close-error')?.addEventListener('click', () => {
+    errorBanner?.remove();
+    chrome.storage.local.remove('lastError');
+  });
+  
+  // Auto-dismiss after 10 seconds
+  setTimeout(() => {
+    errorBanner?.remove();
+  }, 10000);
+}
+
+// Function to display success message
+function displaySuccessMessage(successText: string) {
+  let successBanner = document.getElementById('success-banner');
+  if (!successBanner) {
+    successBanner = document.createElement('div');
+    successBanner.id = 'success-banner';
+    successBanner.className = 'mb-4 p-3 rounded bg-green-900/30 border border-green-500 text-green-200 text-sm';
+    const mainContent = document.querySelector('main');
+    if (mainContent) mainContent.insertBefore(successBanner, mainContent.firstChild);
+  }
+  
+  successBanner.innerHTML = `<strong>✅ ${successText}</strong>`;
+  
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    successBanner?.remove();
+  }, 5000);
+}
 
 // --- 5. DISCONNECT LOGIC ---
 disconnectBtn.addEventListener('click', () => {
