@@ -21,8 +21,9 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
   console.log(`[DEBUG ROUTE] Data validated. LobbyID: ${data?.lobbyId}`);
 
   try {
-    const session = await SessionService.consumeSession(user.discord_id);
-    const finalGuildId = session?.guild_id || user.last_guild_id || 'GLOBAL';
+    // Check for active session without consuming it - allows multiple games per session
+    const session = await SessionService.getActiveSession(user.discord_id);
+    const finalGuildId = session?.guild_id || 'GLOBAL';
     const targetChannelId = session?.channel_id;
     console.log(`[DEBUG ROUTE] Calling Service with: DiscordID: ${user.discord_id}, GuildID: ${finalGuildId}`);
 

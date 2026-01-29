@@ -35,10 +35,11 @@ export class PlayCommand implements IBotCommand {
             const embed = new EmbedBuilder()
                 .setTitle('🎲 Catan Cartel: Match Starting!')
                 .setDescription(
-                    `I've prepared a match for **${interaction.guild?.name}**.\n\n` +
+                    `I've set up a gaming session for **${interaction.guild?.name}**!\n\n` +
                     `1. Use the button below to open Colonist.io.\n` +
-                    `2. Create a private room.\n\n` +
-                    `*Results will be linked to this server automatically!*`
+                    `2. Create a private room and play.\n` +
+                    `3. Play as many games as you want!\n\n` +
+                    `*This session lasts 60 minutes. All games will be recorded to this server automatically!*`
                 )
                 .setFooter({ text: `Session ID: ${session.id}` })
                 .setColor('#FFB6C1');

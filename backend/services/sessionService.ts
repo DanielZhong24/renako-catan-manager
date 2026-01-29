@@ -34,13 +34,15 @@ export const SessionService = {
     },
 
     /**
-     * Finds the guild_id for an upload and removes the session.
+     * Gets the active session for a user without deleting it.
+     * Sessions remain valid for 60 minutes and persist across multiple games.
      */
-    async consumeSession(uploaderId: string) {
+    async getActiveSession(uploaderId: string) {
         const query = `
-            DELETE FROM pending_sessions 
+            SELECT guild_id, channel_id 
+            FROM pending_sessions 
             WHERE uploader_id = $1 
-            RETURNING guild_id,channel_id;
+            AND created_at > NOW() - INTERVAL '60 minutes'
         `;
         const res = await pool.query(query, [uploaderId]);
         return res.rows[0] || null;

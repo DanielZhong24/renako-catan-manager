@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS pending_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     uploader_id VARCHAR(255) REFERENCES users(discord_id),
     guild_id VARCHAR(255) NOT NULL,
+    channel_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- Optional: Clean up old pending sessions after 1 hour
