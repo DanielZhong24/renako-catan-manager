@@ -24,7 +24,7 @@ export class LinkCommand implements IBotCommand {
                     .addFields({ name: 'Your Extension Key', value: `\`${user.api_key}\`` })
                     .setColor('#2ECC71');
                 const button = new ActionRowBuilder<ButtonBuilder>().addComponents(
-                    new ButtonBuilder().setLabel("If you still need to connect...").setURL("http://localhost:3000/api/auth/login").setStyle(ButtonStyle.Link)
+                    new ButtonBuilder().setLabel("If you still need to connect...").setURL(`${process.env.API_BASE_URL}/api/auth/login`).setStyle(ButtonStyle.Link)
                 );
                 await interaction.editReply({ embeds: [embed],components:[button] });
             } else {
@@ -38,7 +38,7 @@ export class LinkCommand implements IBotCommand {
                     new ButtonBuilder()
                         .setLabel('Login with Discord')
                         .setStyle(ButtonStyle.Link)
-                        .setURL("http://localhost:3000/api/auth/login")
+                        .setURL(`${process.env.API_BASE_URL}/api/auth/login`)
                 );
 
                 await interaction.editReply({ embeds: [embed], components: [row] });
