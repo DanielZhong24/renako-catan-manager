@@ -9,7 +9,7 @@ import { setupInternalRoutes } from './api/internalRoutes.js'; // Import your ne
 dotenv.config();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const api = new ApiClient(process.env.API_BASE_URL || "http://api:3000");
+const api = new ApiClient(process.env.INTERNAL_API_URL || "http://api:3000");
 const handler = new CommandHandler();
 
 (async () => {

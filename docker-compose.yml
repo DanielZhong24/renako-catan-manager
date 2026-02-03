@@ -74,7 +74,6 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - GUILD_ID=${GUILD_ID}
       - API_BASE_URL=${API_BASE_URL}
       - CHOKIDAR_USEPOLLING=true
     depends_on:

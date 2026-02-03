@@ -45,6 +45,7 @@ export class LinkCommand implements IBotCommand {
             }
         } catch (error) {
             await interaction.editReply("⚠️ Unable to reach the portal. Please try again later.");
+            console.error("error: ", error, process.env.API_BASE_URL);
         }
     }
 }
