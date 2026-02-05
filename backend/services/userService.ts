@@ -80,6 +80,62 @@ export const UserService = {
         return res.rows;
     },
 
+    /**
+     * Server leaderboard using a Bayesian win rate plus activity/VP weighting.
+     * - Bayesian win rate smooths small sample sizes: (wins + 3) / (games + 6)
+     * - Rating blends win quality, VP performance, and activity.
+     */
+    async getLeaderboardByGuildId(guildId: string, limit: number = 10) {
+        const query = `
+            WITH stats AS (
+                SELECT
+                    u.discord_id,
+                    u.username,
+                    u.avatar_url,
+                    COUNT(ps.id)::int as total_games,
+                    SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::int as wins,
+                    COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
+                    COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
+                FROM player_stats ps
+                JOIN games g ON ps.game_id = g.id
+                JOIN users u ON ps.discord_id = u.discord_id
+                WHERE g.guild_id = $1 AND ps.discord_id IS NOT NULL
+                GROUP BY u.discord_id, u.username, u.avatar_url
+            ), ranked AS (
+                SELECT
+                    *,
+                    ROUND((((wins + 3)::float / (total_games + 6)) * 100)::numeric, 2) as bayes_win_rate,
+                    ROUND((
+                        (
+                            (((wins + 3)::float / (total_games + 6)) * 100)
+                            + (avg_vp * 2)
+                            + (LN(total_games + 1) * 5)
+                        )::numeric
+                    ), 2) as rating
+                FROM stats
+            )
+            SELECT
+                discord_id,
+                username,
+                avatar_url,
+                total_games,
+                wins,
+                avg_vp,
+                win_rate,
+                bayes_win_rate,
+                rating,
+                ROW_NUMBER() OVER (
+                    ORDER BY rating DESC, wins DESC, avg_vp DESC, total_games DESC, username ASC
+                ) as server_rank
+            FROM ranked
+            ORDER BY server_rank
+            LIMIT $2;
+        `;
+
+        const res = await pool.query(query, [guildId, limit]);
+        return res.rows;
+    },
+
     async getStatsByCatanName(catanName: string) {
         const query = `
         SELECT 

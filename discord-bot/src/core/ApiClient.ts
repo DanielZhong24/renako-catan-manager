@@ -46,6 +46,10 @@ export class ApiClient {
         return this.request<any>(`/api/discord/search?name=${encodeURIComponent(name)}`);
     }
 
+    async getLeaderboard(guildId: string, limit: number = 10) {
+        return this.request<any[]>(`/api/discord/leaderboard/${guildId}?limit=${limit}`);
+    }
+
     // --- POST Requests ---
 
     async createPendingSession(uploaderId: string, guildId: string,channelId:string) {

@@ -17,6 +17,17 @@ discordRoutes.get('/history/:discordId', async (c) => {
     const history = await UserService.getHistoryByDiscordId(discordId);
     return c.json(history);
 });
+
+discordRoutes.get('/leaderboard/:guildId', async (c) => {
+    const guildId = c.req.param('guildId');
+    const limitParam = c.req.query('limit');
+    const limit = Math.min(Math.max(Number(limitParam) || 10, 1), 50);
+
+    if (!guildId) return c.json({ error: 'guild_required' }, 400);
+
+    const leaderboard = await UserService.getLeaderboardByGuildId(guildId, limit);
+    return c.json(leaderboard);
+});
 discordRoutes.get('/user/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
     const user = await UserService.getUserById(discordId);
