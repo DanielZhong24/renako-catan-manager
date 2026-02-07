@@ -15,7 +15,7 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
     if (!user) return c.json({ success: false, error: 'Invalid API Key' }, 403);
 
     const data = c.req.valid('json');
-
+    console.log(data);
     try {
         // --- 🌸 1. IDENTITY BRIDGE (Option B) ---
         // Find the player flagged as 'isMe' and link that name to this Discord ID
@@ -35,6 +35,7 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
 
         // --- 🔄 3. HERO SYNC LOGIC ---
         const uploaderSession = await SessionService.getActiveSession(user.discord_id);
+
         let finalGuildId = uploaderSession?.guild_id || 'GLOBAL';
         let targetChannelId = uploaderSession?.channel_id;
 

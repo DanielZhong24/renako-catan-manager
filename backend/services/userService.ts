@@ -64,16 +64,26 @@ export const UserService = {
      */
     async getHistoryByDiscordId(discordId: string) {
         const query = `
-            SELECT 
-                g.id as game_id,
-                g.game_timestamp,
-                ps.vp,
-                ps.is_winner,
-                ps.player_name
-            FROM player_stats ps
-            JOIN games g ON ps.game_id = g.id
-            WHERE ps.discord_id = $1 
-            ORDER BY g.game_timestamp DESC
+            WITH ranked AS (
+                SELECT
+                    g.id as game_id,
+                    g.lobby_id,
+                    g.game_timestamp,
+                    ps.vp,
+                    ps.is_winner,
+                    ps.player_name,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY g.lobby_id
+                        ORDER BY g.game_timestamp DESC, ps.is_me DESC, ps.id DESC
+                    ) as rn
+                FROM player_stats ps
+                JOIN games g ON ps.game_id = g.id
+                WHERE ps.discord_id = $1
+            )
+            SELECT game_id, game_timestamp, vp, is_winner, player_name
+            FROM ranked
+            WHERE rn = 1
+            ORDER BY game_timestamp DESC
             LIMIT 5;
         `;
         const res = await pool.query(query, [discordId]);
