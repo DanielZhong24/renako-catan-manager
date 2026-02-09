@@ -3,7 +3,6 @@
   "name": "Colonist Game Logger",
   "version": "1.0",
   "permissions": ["storage", "notifications"],
-  "key": "MD8iMA0KBgkqPz8NCgEBAQUAAz8PADA/DQoCPwEAP04vP2c/Pz8/P2E/Ii8DNHY3FkVRPz9GPyA/Pz8/HCJkMl0/bz9CP3pUGT8/IF1PQj8/QD9FPws/KT8/P3M6GD9lP1lvPz9eZR5IPz8nJz8VI2E/Bz8/Pz8/P0c/Pz8/P0MlOD8PcT8gbnAVP3A/Pz8gPyQ/Pz8rUykRPyo/Hz8JMD8DCD8/by56PyhyPykAP18/Pz8RP3kMPz8/aAU/Oj8/P2Y/Pz8CPz8qPz9zPwMBAAENCg==",
   "action":{
     "default_popup":"popup.html",
     "default_icons": {
