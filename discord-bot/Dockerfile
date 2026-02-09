@@ -9,5 +9,11 @@ RUN npm install
 # Copy the rest of the code
 COPY . .
 
-# We use tsx to run it directly in the container
-CMD ["npm", "run", "dev"]
+RUN npm run build \
+    && npm prune --omit=dev
+
+ENV NODE_ENV=production
+
+EXPOSE 3001
+
+CMD ["npm", "start"]

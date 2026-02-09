@@ -7,7 +7,8 @@
   "scripts": {
     "register": "tsx src/deploy-commands.ts",
     "dev": "tsx watch src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",

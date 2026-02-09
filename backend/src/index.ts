@@ -24,9 +24,11 @@ app.route('/admin', adminRoutes);          // Admin Dashboard
 
 app.get('/', (c) => c.text('Catan Service is Online YAY!'));
 
+const port = Number(process.env.PORT) || 3000;
+
 serve({
   fetch: app.fetch,
-  port: 3000,
+  port,
   hostname: '0.0.0.0'
 }, (info) => {
   console.log(`🚀 API running on http://localhost:${info.port}`);

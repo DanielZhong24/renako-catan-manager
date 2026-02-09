@@ -10,6 +10,7 @@ dotenv.config();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const api = new ApiClient(process.env.INTERNAL_API_URL || "http://api:3000");
+const port = Number(process.env.PORT) || 3001;
 const handler = new CommandHandler();
 
 (async () => {
@@ -28,7 +29,8 @@ const handler = new CommandHandler();
         
         serve({
             fetch: app.fetch,
-            port: 3001
+            port,
+            hostname: '0.0.0.0'
         }, (info) => {
             console.log(`📡 Internal API listening on http://localhost:${info.port}`);
         });
