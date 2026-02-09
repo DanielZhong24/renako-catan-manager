@@ -1,13 +1,79 @@
 import { Hono } from 'hono';
 import { UserService } from '../services/userService.js';
 import { SessionService } from '../services/sessionService.js';
-import { channel } from 'diagnostics_channel';
 const discordRoutes = new Hono();
+
+type RateLimitEntry = {
+    count: number;
+    resetAt: number;
+};
+
+const RATE_LIMIT_WINDOW_MS = 60000;
+const RATE_LIMIT_MAX = 10;
+const rateLimitStore = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_DEBUG = true;
+
+const getRateLimitKey = (c: any): string => {
+    const headerDiscordId = c.req.header('x-discord-id');
+    if (headerDiscordId) return `user:${headerDiscordId}`;
+
+    const path = typeof c.req.path === 'string' ? c.req.path : '';
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length >= 2) {
+        const routeName = segments[0];
+        if (routeName === 'stats' || routeName === 'history' || routeName === 'user') {
+            return `user:${segments[1]}`;
+        }
+    }
+
+    const params = c.req.param();
+    const paramDiscordId = params?.discordId;
+    if (paramDiscordId) return `user:${paramDiscordId}`;
+
+    const queryDiscordId = c.req.query('discordId') || c.req.query('userId');
+    if (queryDiscordId) return `user:${queryDiscordId}`;
+
+    const forwardedFor = c.req.header('x-forwarded-for') || c.req.header('x-real-ip');
+    if (forwardedFor) return `ip:${forwardedFor.split(',')[0].trim()}`;
+
+    const userAgent = c.req.header('user-agent') || 'unknown';
+    return `anon:${userAgent}`;
+};
+
+discordRoutes.use('*', async (c, next) => {
+    const key = getRateLimitKey(c);
+
+    const now = Date.now();
+    const entry = rateLimitStore.get(key);
+
+    if (!entry || entry.resetAt <= now) {
+        rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        if (RATE_LIMIT_DEBUG) {
+            console.log('[rate-limit] init', { key, path: c.req.path, count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        }
+        await next();
+        return;
+    }
+
+    entry.count += 1;
+    if (RATE_LIMIT_DEBUG) {
+        console.log('[rate-limit] hit', { key, path: c.req.path, count: entry.count, resetAt: entry.resetAt });
+    }
+    if (entry.count > RATE_LIMIT_MAX) {
+        const retryAfterMs = Math.max(0, entry.resetAt - now);
+        c.header('Retry-After', Math.ceil(retryAfterMs / 1000).toString());
+        if (RATE_LIMIT_DEBUG) {
+            console.log('[rate-limit] blocked', { key, path: c.req.path, retryAfterMs });
+        }
+        return c.json({ error: 'rate_limited', retryAfterMs }, 429);
+    }
+
+    await next();
+});
 
 discordRoutes.get('/stats/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
     const stats = await UserService.getStatsByDiscordId(discordId);
-    
     if (!stats) return c.json({ error: 'not_found' }, 404);
     return c.json(stats);
 });

@@ -9,6 +9,8 @@ import {
 } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 type LeaderboardEntry = {
 	discord_id: string;
@@ -47,7 +49,7 @@ export class LeaderboardCommand implements IBotCommand {
 		}
 
 		try {
-			const leaderboard = await api.getLeaderboard(interaction.guildId, 10) as LeaderboardEntry[] | null;
+			const leaderboard = await api.getLeaderboard(interaction.guildId, 10, interaction.user.id) as LeaderboardEntry[] | null;
 
 			if (!leaderboard || leaderboard.length === 0) {
 				const emptyEmbed = new EmbedBuilder()
@@ -148,6 +150,10 @@ export class LeaderboardCommand implements IBotCommand {
 				});
 			}
 		} catch (error) {
+			if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+				await interaction.editReply({ embeds: [createRenakoGeneralErrorEmbed()] });
+				return;
+			}
 			const panicEmbed = new EmbedBuilder()
 				.setTitle('💥 Leaderboard meltdown!')
 				.setDescription(

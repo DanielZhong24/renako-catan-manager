@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 export class PlayCommand implements IBotCommand {
     data = new SlashCommandBuilder()
@@ -22,7 +24,7 @@ export class PlayCommand implements IBotCommand {
 
         try {
             // 1. Create a pending session in the DB via your API
-            const session = await api.createPendingSession(uploaderId, guildId, channelId);
+            const session = await api.createPendingSession(uploaderId, guildId, channelId, interaction.user.id);
             // 2. Defensive Check: Handle the null case (API returned 404)
             if (!session) {
                 await interaction.reply({ 
@@ -54,6 +56,10 @@ export class PlayCommand implements IBotCommand {
 
             await interaction.reply({ embeds: [embed], components: [row] });
         } catch (error) {
+            if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+                await interaction.reply({ embeds: [createRenakoGeneralErrorEmbed()], flags: [MessageFlags.Ephemeral] });
+                return;
+            }
             console.error('Play Command Error:', error);
             await interaction.reply({ 
                 content: "My social battery is too low to start a game right now (API Error).", 

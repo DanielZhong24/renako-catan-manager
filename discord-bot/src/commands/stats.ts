@@ -2,6 +2,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 export class StatsCommand implements IBotCommand {
     data = new SlashCommandBuilder()
@@ -21,7 +23,7 @@ export class StatsCommand implements IBotCommand {
                     .setDescription(
                         "```\n" +
                         "┌─────────────────────────────────┐\n" +
-                        "│  No games found... (╥﹏╥)        │\n" +
+                        "│  No games found... (╥﹏╥)       │\n" +
                         "│                                 │\n" +
                         "│  D-did I mess up the database?! │\n" +
                         "│  No no, it's probably fine...   │\n" +
@@ -111,6 +113,10 @@ export class StatsCommand implements IBotCommand {
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
+            if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+                await interaction.editReply({ embeds: [createRenakoGeneralErrorEmbed()] });
+                return;
+            }
             // Renako panic mode!
             const panicEmbed = new EmbedBuilder()
                 .setTitle('💦 A-AHHH! Something went wrong!')

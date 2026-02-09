@@ -7,6 +7,7 @@ import 'dotenv/config';
 import authRoutes from '../routes/authRoutes.js';
 import discordRoutes from '../routes/discordRoutes.js';
 import gameRoutes from '../routes/gameRoutes.js';
+import adminRoutes from '../routes/adminRoutes.js';
 
 const app = new Hono();
 
@@ -19,6 +20,7 @@ app.use('*', cors());
 app.route('/api/auth', authRoutes);       // Handles Login/Callback
 app.route('/api/discord', discordRoutes); // Handles Bot Interactions
 app.route('/api/games', gameRoutes);       // Handles Scraper Data
+app.route('/admin', adminRoutes);          // Admin Dashboard
 
 app.get('/', (c) => c.text('Catan Service is Online YAY!'));
 

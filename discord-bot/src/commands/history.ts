@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 export class HistoryCommand implements IBotCommand {
     data = new SlashCommandBuilder()
@@ -35,6 +37,10 @@ export class HistoryCommand implements IBotCommand {
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
+            if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+                await interaction.editReply({ embeds: [createRenakoGeneralErrorEmbed()] });
+                return;
+            }
             await interaction.editReply("Uuu... the API isn't responding. Is it avoiding me too?! 😭");
         }
     }

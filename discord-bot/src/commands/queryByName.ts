@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 export class QueryByNameCommand implements IBotCommand {
     // We cast to any to avoid the SlashCommandOptionsOnlyBuilder type mismatch error
@@ -18,7 +20,7 @@ export class QueryByNameCommand implements IBotCommand {
 
         try {
             // Using 'api' to match your BotContext destructuring
-            const player = await api.getPlayerByCatanName(catanName!);
+            const player = await api.getPlayerByCatanName(catanName!, interaction.user.id);
             const botStatus = player.is_bot?"(**Bot**)":"";
 
             if (!player || Number(player.total_games) === 0) {
@@ -47,6 +49,10 @@ export class QueryByNameCommand implements IBotCommand {
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
+            if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+                await interaction.editReply({ embeds: [createRenakoGeneralErrorEmbed()] });
+                return;
+            }
             await interaction.editReply("Something went wrong with the search! Maybe the database is as overwhelmed as I am... 😭");
         }
     }

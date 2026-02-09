@@ -47,3 +47,15 @@ export const createMatchSummaryEmbed = (summary: MatchTitles) => {
         })
         .setTimestamp();
 };
+
+export const createRenakoGeneralErrorEmbed = () => {
+    return new EmbedBuilder()
+        .setTitle('Amaori Renako')
+        .setDescription(
+            "H-hey! You're going too fast, and the servers are getting dizzy...\n" +
+            'Please slow down and try again a little later. (｡•́︿•̀｡)'
+        )
+        .setColor('#FF8FB1')
+        .setFooter({ text: 'Cooldown in effect • Renako is regaining her composure' })
+        .setTimestamp();
+};

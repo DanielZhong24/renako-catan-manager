@@ -1,7 +1,6 @@
-// backend/src/services/gameService.ts
 import pool from '../db/db.js';
 import type { MatchTitles } from '../schemas/gameSchema.js';
-import { UserService } from './userService.js'; // Import UserService
+import { UserService } from './userService.js'; 
 export const GameService = {
   async createGameWithPlayers(userId: string, guildId: string, data: any) {
       const client = await pool.connect();

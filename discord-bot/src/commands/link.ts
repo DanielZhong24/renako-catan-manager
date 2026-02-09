@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { IBotCommand } from '../core/types.js';
 import { BotContext } from '../core/BotContext.js';
+import { ApiError } from '../core/ApiClient.js';
+import { createRenakoGeneralErrorEmbed } from '../utils/embedGenerator.js';
 
 // bot/src/commands/link.ts
 export class LinkCommand implements IBotCommand {
@@ -44,6 +46,10 @@ export class LinkCommand implements IBotCommand {
                 await interaction.editReply({ embeds: [embed], components: [row] });
             }
         } catch (error) {
+            if (error instanceof ApiError && (error.kind === 'rate_limit' || error.kind === 'upstream')) {
+                await interaction.editReply({ embeds: [createRenakoGeneralErrorEmbed()] });
+                return;
+            }
             await interaction.editReply("⚠️ Unable to reach the portal. Please try again later.");
             console.error("error: ", error, process.env.API_BASE_URL);
         }
