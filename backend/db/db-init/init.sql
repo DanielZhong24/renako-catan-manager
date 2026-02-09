@@ -50,6 +50,21 @@ CREATE TABLE IF NOT EXISTS pending_sessions (
     channel_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS admin_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+    token UUID PRIMARY KEY,
+    username TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL
+);
 -- Optional: Clean up old pending sessions after 1 hour
 DELETE FROM pending_sessions WHERE created_at < NOW() - INTERVAL '1 hour';
 -- Step 2: Drop dependent views first
