@@ -201,7 +201,6 @@ export class AdminService {
             ORDER BY game_timestamp DESC
             LIMIT 200`
         );
-        console.log(res.rows);
         return res.rows;
     }
 

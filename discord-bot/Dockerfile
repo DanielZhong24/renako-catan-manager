@@ -9,12 +9,12 @@ RUN npm install
 # Copy the rest of the code
 COPY . .
 
-# RUN npm run build \
-#     && npm prune --omit=dev
+RUN npm run build \
+    && npm prune --omit=dev
 
-# ENV NODE_ENV=production
+ENV NODE_ENV=production
 
-# EXPOSE 3001
+EXPOSE 3001
 
-# CMD ["npm", "start"]
-CMD ["npm", "run","dev"]
+CMD ["npm", "start"]
+# CMD ["npm", "run","dev"]
