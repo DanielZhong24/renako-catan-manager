@@ -1,4 +1,4 @@
-import { html } from 'hono/html';
+import { html, raw } from 'hono/html';
 
 type LayoutOptions = {
     title: string;
@@ -299,7 +299,7 @@ const adminLayout = ({ title, showNav, content }: LayoutOptions) => {
     </nav>
 </header>
 <main>
-${html([content])}
+${raw(content)}
 </main>
 </body>
 </html>`;
