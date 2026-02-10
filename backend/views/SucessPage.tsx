@@ -54,7 +54,7 @@ export const SuccessPage = (username: string, avatarUrl: string, discordId: stri
         </div>
 
         <div class="space-y-3">
-            <button onclick="" 
+            <button onclick="window.location.href='https://chromewebstore.google.com/detail/colonist-game-logger/dgnoldnmedeoclgeieofphoaikogicff'" 
                   class="block w-full py-3 px-4 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-pink-900/40 active:scale-95">
            Install the extension
           </button>
@@ -97,7 +97,7 @@ export const SuccessPage = (username: string, avatarUrl: string, discordId: stri
       </div>
 
       <script>
-        const EXTENSION_ID = "bghbdchoonfjinjmoglhiiehgaefelco";
+        const EXTENSION_ID = "dgnoldnmedeoclgeieofphoaikogicff";
 
         function updateUI(state) {
           const overlay = document.getElementById('loading-overlay');
