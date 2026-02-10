@@ -21,15 +21,6 @@ export class StatsCommand implements IBotCommand {
                 const emptyEmbed = new EmbedBuilder()
                     .setTitle('🌸 E-eh?! Your stats are... empty?!')
                     .setDescription(
-                        "```\n" +
-                        "┌─────────────────────────────────┐\n" +
-                        "│  No games found... (╥﹏╥)       │\n" +
-                        "│                                 │\n" +
-                        "│  D-did I mess up the database?! │\n" +
-                        "│  No no, it's probably fine...   │\n" +
-                        "│  ...probably.                   │\n" +
-                        "└─────────────────────────────────┘\n" +
-                        "```\n\n" +
                         "*R-Renako frantically checks her notes...*\n\n" +
                         "Oh! You haven't played any tracked games yet! " +
                         "That's totally okay! I mean, I get nervous playing too... " +

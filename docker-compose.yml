@@ -13,6 +13,7 @@ services:
           - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
           - REDIRECT_URI=${REDIRECT_URI}
           - DISCORD_AUTH_URL=${DISCORD_AUTH_URL}
+          - EXTENSION_ID=${EXTENSION_ID}
           - REDIS_URL=redis://cache:6379
           - CHOKIDAR_USEPOLLING=true
     depends_on:
@@ -79,10 +80,10 @@ services:
     depends_on:
       - api
 
-  tunnel:
-    container_name: renako-tunnel
-    image: cloudflare/cloudflared:latest
-    restart: always
-    command: tunnel --no-autoupdate run --token eyJhIjoiOTBjYmUzN2M2N2E1MzNjMTIxNGE0Mjc5NmIwYzM5N2MiLCJ0IjoiNzhhODdjMGYtYjM3Yi00MWFkLTk0MzQtZmE4MmNkZjRhMTJmIiwicyI6IllXWmpNamxrTldZdE1UWXpNUzAwTnpCbUxUaGxaR1F0TUROaE5UVmlNRFl6TkRneSJ9
+#   tunnel:
+#     container_name: renako-tunnel
+#     image: cloudflare/cloudflared:latest
+#     restart: always
+#     command: tunnel --no-autoupdate run --token eyJhIjoiOTBjYmUzN2M2N2E1MzNjMTIxNGE0Mjc5NmIwYzM5N2MiLCJ0IjoiNzhhODdjMGYtYjM3Yi00MWFkLTk0MzQtZmE4MmNkZjRhMTJmIiwicyI6IllXWmpNamxrTldZdE1UWXpNUzAwTnpCbUxUaGxaR1F0TUROaE5UVmlNRFl6TkRneSJ9
 volumes:
   catan_data:

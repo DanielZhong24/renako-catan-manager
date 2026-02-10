@@ -72,8 +72,9 @@ authRoutes.get('/callback', async (c) => {
       discordUser.avatar
     );
     console.log('✅ User saved to DB:', user.discord_id);
-
-    return c.html(SuccessPage(user.username,user.avatar_url,user.discord_id,user.api_key));
+    const extension_id = process.env.EXTENSION_ID || '';
+    console.log("id:",extension_id);
+    return c.html(SuccessPage(user.username,user.avatar_url,user.discord_id,user.api_key,extension_id));
   } catch (error) {
     console.error("❌ Auth Error:", error);
     return c.json({ error: "Authentication failed", details: error instanceof Error ? error.message : String(error) }, 500);

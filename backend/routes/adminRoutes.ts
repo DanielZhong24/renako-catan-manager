@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
-import pool from '../db/db.js';
-import crypto from 'crypto';
+import { AdminService } from '../services/adminService.js';
 import {
     renderAdminAnalyticsPage,
     renderAdminCreateUserPage,
@@ -19,12 +18,6 @@ const adminRoutes = new Hono();
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const ADMIN_COOKIE_SECURE = process.env.ADMIN_COOKIE_SECURE === 'true';
-
-type AdminSession = {
-    token: string;
-    username: string;
-    expiresAt: Date;
-};
 
 const parseCookies = (cookieHeader: string | undefined) => {
     if (!cookieHeader) return {} as Record<string, string>;
@@ -64,50 +57,14 @@ const clearSessionCookie = (c: any) => {
     c.header('Set-Cookie', parts.join('; '));
 };
 
-const cleanupExpiredSessions = async () => {
-    await pool.query('DELETE FROM admin_sessions WHERE expires_at <= NOW()');
-};
-
-const createSession = async (username: string) => {
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-    await pool.query(
-        `INSERT INTO admin_sessions (token, username, expires_at)
-         VALUES ($1, $2, $3)`,
-        [token, username, expiresAt]
-    );
-    return { token, expiresAt };
-};
-
 const getSession = async (c: any) => {
     const cookies = parseCookies(c.req.header('cookie'));
     const token = cookies[SESSION_COOKIE];
     if (!token) return null;
+    const session = await AdminService.getValidSession(token);
+    if (!session) return null;
 
-    await cleanupExpiredSessions();
-    const res = await pool.query(
-        `SELECT token, username, expires_at
-         FROM admin_sessions
-         WHERE token = $1`,
-        [token]
-    );
-
-    if (res.rowCount === 0) return null;
-
-    const row = res.rows[0];
-    if (new Date(row.expires_at).getTime() <= Date.now()) {
-        await pool.query('DELETE FROM admin_sessions WHERE token = $1', [token]);
-        return null;
-    }
-
-    return {
-        token: row.token,
-        session: {
-            token: row.token,
-            username: row.username,
-            expiresAt: row.expires_at
-        } as AdminSession
-    };
+    return { token: session.token, session };
 };
 
 const requireAdminSession = async (c: any) => {
@@ -119,24 +76,19 @@ const requireAdminSession = async (c: any) => {
     return null;
 };
 
-const hasAdminUsers = async () => {
-    const res = await pool.query('SELECT COUNT(*)::int AS count FROM admin_users');
-    return res.rows[0].count > 0;
-};
-
 const renderConfigError = (c: any) => {
     return c.html(renderNoAdminsPage(), 500);
 };
 
 adminRoutes.get('/login', async (c) => {
-    if (!(await hasAdminUsers())) {
+    if (!(await AdminService.hasAdminUsers())) {
         return renderConfigError(c);
     }
     return c.html(renderAdminLoginPage());
 });
 
 adminRoutes.post('/login', async (c) => {
-    if (!(await hasAdminUsers())) {
+    if (!(await AdminService.hasAdminUsers())) {
         return renderConfigError(c);
     }
 
@@ -144,19 +96,13 @@ adminRoutes.post('/login', async (c) => {
     const username = String(form.username || '').trim();
     const password = String(form.password || '');
 
-    const authRes = await pool.query(
-        `SELECT id
-         FROM admin_users
-         WHERE username = $1 AND password_hash = crypt($2, password_hash)`,
-        [username, password]
-    );
-
-    if (authRes.rowCount === 0) {
+    const isValid = await AdminService.validateCredentials(username, password);
+    if (!isValid) {
         return c.html(renderAdminLoginPage('Invalid credentials. Please try again.'), 401);
     }
 
-    await pool.query('UPDATE admin_users SET last_login = NOW() WHERE username = $1', [username]);
-    const session = await createSession(username);
+    await AdminService.recordLogin(username);
+    const session = await AdminService.createSession(username, SESSION_TTL_MS);
     setSessionCookie(c, session.token, Math.floor(SESSION_TTL_MS / 1000));
     return c.redirect('/admin');
 });
@@ -164,7 +110,7 @@ adminRoutes.post('/login', async (c) => {
 adminRoutes.post('/logout', async (c) => {
     const session = await getSession(c);
     if (session) {
-        await pool.query('DELETE FROM admin_sessions WHERE token = $1', [session.token]);
+        await AdminService.deleteSession(session.token);
     }
     clearSessionCookie(c);
     return c.redirect('/admin/login');
@@ -177,27 +123,13 @@ adminRoutes.use('*', async (c, next) => {
 });
 
 adminRoutes.get('/', async (c) => {
-    const userCountRes = await pool.query('SELECT COUNT(*)::int AS count FROM users');
-    const gameCountRes = await pool.query('SELECT COUNT(*)::int AS count FROM games');
-    const botCountRes = await pool.query('SELECT COUNT(*)::int AS count FROM player_stats WHERE is_bot = true');
-    const serverCountRes = await pool.query("SELECT COUNT(DISTINCT guild_id)::int AS count FROM games WHERE guild_id IS NOT NULL AND guild_id <> 'GLOBAL'");
-    return c.html(renderAdminOverviewPage({
-        userCount: userCountRes.rows[0].count,
-        gameCount: gameCountRes.rows[0].count,
-        botCount: botCountRes.rows[0].count,
-        serverCount: serverCountRes.rows[0].count
-    }));
+    const counts = await AdminService.getOverviewCounts();
+    return c.html(renderAdminOverviewPage(counts));
 });
 
 adminRoutes.get('/users', async (c) => {
-    const res = await pool.query(
-        `SELECT discord_id, username, avatar_url, api_key, created_at
-         FROM users
-         ORDER BY created_at DESC
-         LIMIT 200`
-    );
-
-    return c.html(renderAdminUsersPage(res.rows));
+    const users = await AdminService.listUsers();
+    return c.html(renderAdminUsersPage(users));
 });
 
 adminRoutes.get('/users/new', async (c) => {
@@ -215,12 +147,7 @@ adminRoutes.post('/users', async (c) => {
         return c.text('Discord ID is required.', 400);
     }
 
-    await pool.query(
-        `INSERT INTO users (discord_id, username, avatar_url, catan_username)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (discord_id) DO NOTHING`,
-        [discordId, username, avatarUrl, catanUsername]
-    );
+    await AdminService.createUser(discordId, username, avatarUrl, catanUsername);
 
     return c.redirect(`/admin/users/${encodeURIComponent(discordId)}`);
 });
@@ -234,37 +161,19 @@ adminRoutes.post('/users/identities', async (c) => {
         return c.text('Discord ID and Catan username are required.', 400);
     }
 
-    await pool.query(
-        `INSERT INTO catan_identities (discord_id, catan_name)
-         VALUES ($1, $2)
-         ON CONFLICT (catan_name) DO NOTHING`,
-        [discordId, catanName]
-    );
+    await AdminService.createIdentity(discordId, catanName);
 
     return c.redirect(`/admin/users/${encodeURIComponent(discordId)}`);
 });
 
 adminRoutes.get('/users/:discordId', async (c) => {
     const discordId = c.req.param('discordId');
-    const userRes = await pool.query(
-        `SELECT discord_id, username, avatar_url, api_key, created_at, catan_username
-         FROM users WHERE discord_id = $1`,
-        [discordId]
-    );
-
-    if (userRes.rowCount === 0) {
+    const user = await AdminService.getUserByDiscordId(discordId);
+    if (!user) {
         return c.text('User not found.', 404);
     }
-
-    const identitiesRes = await pool.query(
-        `SELECT catan_name, created_at
-         FROM catan_identities
-         WHERE discord_id = $1
-         ORDER BY created_at DESC`,
-        [discordId]
-    );
-
-    return c.html(renderAdminUserDetailPage(userRes.rows[0], identitiesRes.rows));
+    const identities = await AdminService.getIdentitiesByDiscordId(discordId);
+    return c.html(renderAdminUserDetailPage(user, identities));
 });
 
 adminRoutes.post('/users/:discordId', async (c) => {
@@ -274,89 +183,45 @@ adminRoutes.post('/users/:discordId', async (c) => {
     const avatarUrl = String(form.avatar_url || '').trim() || null;
     const catanUsername = String(form.catan_username || '').trim() || null;
 
-    await pool.query(
-        `UPDATE users
-         SET username = $1, avatar_url = $2, catan_username = $3
-         WHERE discord_id = $4`,
-        [username, avatarUrl, catanUsername, discordId]
-    );
+    await AdminService.updateUser(discordId, username, avatarUrl, catanUsername);
 
     return c.redirect(`/admin/users/${encodeURIComponent(discordId)}`);
 });
 
 adminRoutes.post('/users/:discordId/delete', async (c) => {
     const discordId = c.req.param('discordId');
-    await pool.query('DELETE FROM users WHERE discord_id = $1', [discordId]);
+    await AdminService.deleteUser(discordId);
     return c.redirect('/admin/users');
 });
 
 adminRoutes.get('/games', async (c) => {
-    const res = await pool.query(
-        `SELECT g.id,
-                g.guild_id,
-                g.game_timestamp,
-                COUNT(ps.id)::int AS players,
-                SUM(CASE WHEN ps.is_bot THEN 1 ELSE 0 END)::int AS bots,
-                MAX(CASE WHEN ps.is_winner THEN ps.player_name ELSE NULL END) AS winner
-         FROM games g
-         LEFT JOIN player_stats ps ON ps.game_id = g.id
-         GROUP BY g.id, g.guild_id, g.game_timestamp
-         ORDER BY g.game_timestamp DESC
-         LIMIT 200`
-    );
-
-    return c.html(renderAdminGamesPage(res.rows));
+    const games = await AdminService.listGames();
+    return c.html(renderAdminGamesPage(games));
 });
 
 adminRoutes.get('/games/:gameId', async (c) => {
     const gameId = c.req.param('gameId');
-    const gameRes = await pool.query(
-        `SELECT id, guild_id, game_timestamp, lobby_id
-         FROM games WHERE id = $1`,
-        [gameId]
-    );
-
-    if (gameRes.rowCount === 0) {
+    const game = await AdminService.getGameById(gameId);
+    if (!game) {
         return c.text('Game not found.', 404);
     }
-
-    const playersRes = await pool.query(
-        `SELECT player_name, vp, is_bot, is_winner, is_me
-         FROM player_stats
-         WHERE game_id = $1
-         ORDER BY vp DESC`,
-        [gameId]
-    );
-
-    return c.html(renderAdminGameDetailPage(gameRes.rows[0], playersRes.rows));
+    const players = await AdminService.getPlayersByGameId(gameId);
+    return c.html(renderAdminGameDetailPage(game, players));
 });
 
 adminRoutes.get('/analytics', async (c) => {
-    const seriesRes = await pool.query(
-        `SELECT date_trunc('day', g.game_timestamp) AS day,
-                SUM(CASE WHEN ps.is_bot THEN 1 ELSE 0 END)::int AS bots,
-                SUM(CASE WHEN ps.is_bot THEN 0 ELSE 1 END)::int AS humans
-         FROM games g
-         JOIN player_stats ps ON ps.game_id = g.id
-         GROUP BY day
-         ORDER BY day ASC`
-    );
+    const [seriesRows, topPlayersRows] = await Promise.all([
+        AdminService.getAnalyticsSeries(),
+        AdminService.getTopPlayers()
+    ]);
 
-    const topPlayersRes = await pool.query(
-        `SELECT player_name, COUNT(*)::int AS appearances
-         FROM player_stats
-         GROUP BY player_name
-         ORDER BY appearances DESC
-         LIMIT 10`
-    );
-
-    const series = seriesRes.rows.map((row: any) => ({
+    const series = seriesRows.map((row: any) => ({
         day: row.day.toISOString().slice(0, 10),
         bots: row.bots,
         humans: row.humans
     }));
 
-    const topPlayers = topPlayersRes.rows.map((row: any) => ({
+    const topPlayers = topPlayersRows.map((row: any) => ({
         player_name: row.player_name,
         appearances: row.appearances
     }));
@@ -365,17 +230,8 @@ adminRoutes.get('/analytics', async (c) => {
 });
 
 adminRoutes.get('/servers', async (c) => {
-    const res = await pool.query(
-        `SELECT guild_id,
-                COUNT(*)::int AS games,
-                MAX(game_timestamp) AS last_seen
-         FROM games
-         WHERE guild_id IS NOT NULL AND guild_id <> 'GLOBAL'
-         GROUP BY guild_id
-         ORDER BY games DESC`
-    );
-
-    return c.html(renderAdminServersPage(res.rows));
+    const servers = await AdminService.listServers();
+    return c.html(renderAdminServersPage(servers));
 });
 
 export default adminRoutes;
