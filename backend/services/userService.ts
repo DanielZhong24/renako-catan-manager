@@ -43,7 +43,7 @@ export const UserService = {
             COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
             COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
         FROM users u
-        LEFT JOIN player_stats ps ON u.discord_id = ps.uploader_id AND ps.is_me = true
+        LEFT JOIN player_stats ps ON u.discord_id = ps.discord_id
         WHERE u.discord_id = $1 
         GROUP BY u.username;
         `;
