@@ -1,6 +1,7 @@
 import { html } from 'hono/html';
+import 'dotenv/config';
 
-export const SuccessPage = (username: string, avatarUrl: string, discordId: string, apiKey: string) => html`
+export const SuccessPage = (username: string, avatarUrl: string, discordId: string, apiKey: string,extension_id:string) => html`
   <!DOCTYPE html>
   <html lang="en">
     <head>
@@ -97,8 +98,6 @@ export const SuccessPage = (username: string, avatarUrl: string, discordId: stri
       </div>
 
       <script>
-        const EXTENSION_ID = "dgnoldnmedeoclgeieofphoaikogicff";
-
         function updateUI(state) {
           const overlay = document.getElementById('loading-overlay');
           const status = document.getElementById('status-message');
@@ -135,7 +134,7 @@ export const SuccessPage = (username: string, avatarUrl: string, discordId: stri
             }
 
             chrome.runtime.sendMessage(
-              EXTENSION_ID,
+              '${extension_id}',
               {
                 type: "SET_CREDENTIALS",
                 payload: { discordId, apiKey }
