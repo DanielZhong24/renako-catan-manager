@@ -32,8 +32,7 @@ export const UserService = {
     },
 
     /**
-     * Updated: Now uses ps.discord_id to pull stats across ALL 
-     * linked Catan identities, regardless of who uploaded.
+     * Uses the uploader's Discord ID for stats.
      */
     async getStatsByDiscordId(discordId: string) {
         const query = `
@@ -44,7 +43,7 @@ export const UserService = {
             COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
             COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
         FROM users u
-        LEFT JOIN player_stats ps ON u.discord_id = ps.discord_id 
+        LEFT JOIN player_stats ps ON u.discord_id = ps.uploader_id AND ps.is_me = true
         WHERE u.discord_id = $1 
         GROUP BY u.username;
         `;
@@ -59,8 +58,7 @@ export const UserService = {
     },
 
     /**
-     * Updated: Now pulls the last 5 games where THIS discord user 
-     * was a participant (ps.discord_id), not just the uploader.
+     * Pulls the last 5 games for the uploader's Discord ID.
      */
     async getHistoryByDiscordId(discordId: string) {
         const query = `
@@ -78,7 +76,7 @@ export const UserService = {
                     ) as rn
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                WHERE ps.discord_id = $1
+                WHERE ps.uploader_id = $1 AND ps.is_me = true
             )
             SELECT game_id, game_timestamp, vp, is_winner, player_name
             FROM ranked
@@ -108,8 +106,8 @@ export const UserService = {
                     COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                JOIN users u ON ps.discord_id = u.discord_id
-                WHERE g.guild_id = $1 AND ps.discord_id IS NOT NULL
+                JOIN users u ON ps.uploader_id = u.discord_id
+                WHERE g.guild_id = $1 AND ps.uploader_id IS NOT NULL AND ps.is_me = true
                 GROUP BY u.discord_id, u.username, u.avatar_url
             ), ranked AS (
                 SELECT
