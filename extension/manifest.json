@@ -12,6 +12,12 @@
       "128": "icons/disconnected.png"
     }
   },
+  "icons": {
+    "16": "icons/disconnected.png",
+    "32": "icons/disconnected.png",
+    "48": "icons/disconnected.png",
+    "128": "icons/disconnected.png"
+  },
   "host_permissions": [
     "http://localhost:3000/*",
     "http://localhost/*",
