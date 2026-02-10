@@ -38,7 +38,7 @@ jobs:
           cache-dependency-path: './discord-bot/package-lock.json'
 
       - name: Install & Build Bot
-        working-directory: ./bot
+        working-directory: ./discord-bot
         run: |
           npm ci
           npx tsc --noEmit
