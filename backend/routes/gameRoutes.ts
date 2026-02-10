@@ -66,7 +66,7 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
         if (gameId && finalGuildId !== 'GLOBAL' && uploaderSession) {
             try {
                 const summary = await GameService.getMatchSummary(gameId);
-                fetch(`http://discord-bot:3001/announce`, {
+                fetch(`https://discord-bot-production-7da0.up.railway.app/announce`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ summary, guildId: finalGuildId, channelId: targetChannelId })
