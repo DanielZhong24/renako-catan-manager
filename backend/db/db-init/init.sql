@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS player_stats (
     is_me BOOLEAN DEFAULT false, -- The key to multi-user stats
     activity_stats JSONB,
     resource_stats JSONB,
-    discord_id TEXT,
+    discord_id VARCHAR(255),
     UNIQUE (game_id, uploader_id, player_name)
 );
 
