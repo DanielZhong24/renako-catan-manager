@@ -14,24 +14,23 @@ export class AdminService {
                 g.id,
                 g.guild_id,
                 g.game_timestamp,
-                to_timestamp(round(extract(epoch FROM g.game_timestamp) / 10) * 10) AS game_bucket,
+                -- Fingerprint the match using the unique stat blobs of the players
+                -- This is more reliable than timing buckets
+                md5(
+                    string_agg(
+                        ps.player_name || ':' || ps.vp || ':' || ps.activity_stats::text,
+                        '|' ORDER BY ps.player_name
+                    )
+                ) AS match_fingerprint,
                 COUNT(ps.id)::int AS players,
                 SUM(CASE WHEN ps.is_bot THEN 1 ELSE 0 END)::int AS bots,
-                MAX(CASE WHEN ps.is_winner THEN ps.player_name ELSE NULL END) AS winner,
-                md5(
-                    COALESCE(
-                        string_agg(
-                            ps.player_name || ':' || ps.vp || ':' || ps.is_bot,
-                            '|' ORDER BY ps.player_name, ps.vp
-                        ),
-                        ''
-                    )
-                ) AS roster_hash
+                MAX(CASE WHEN ps.is_winner THEN ps.player_name ELSE NULL END) AS winner
             FROM games g
             LEFT JOIN player_stats ps ON ps.game_id = g.id
             GROUP BY g.id, g.guild_id, g.game_timestamp
         ), latest_games AS (
-            SELECT DISTINCT ON (guild_id, game_bucket, roster_hash)
+            -- Group by the unique match fingerprint to collapse all uploads into one
+            SELECT DISTINCT ON (match_fingerprint)
                 id,
                 guild_id,
                 game_timestamp,
@@ -39,7 +38,7 @@ export class AdminService {
                 bots,
                 winner
             FROM game_rollup
-            ORDER BY guild_id, game_bucket, roster_hash, game_timestamp DESC, id DESC
+            ORDER BY match_fingerprint, game_timestamp DESC, id DESC
         )`;
     }
     static async hasAdminUsers() {
