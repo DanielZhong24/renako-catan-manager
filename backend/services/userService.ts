@@ -32,7 +32,8 @@ export const UserService = {
     },
 
     /**
-     * Uses the uploader's Discord ID for stats.
+     * Updated: Now aggregates stats across ALL linked Catan identities
+     * and deduplicates matches uploaded by multiple people.
      */
     async getStatsByDiscordId(discordId: string) {
         const query = `
@@ -76,25 +77,28 @@ export const UserService = {
     },
 
     /**
-     * Pulls the last 5 games for the uploader's Discord ID.
+     * Updated: Pulls the last 5 unique games for all linked identities.
      */
     async getHistoryByDiscordId(discordId: string) {
         const query = `
-            WITH ranked AS (
+            WITH user_aliases AS (
+                SELECT array_agg(DISTINCT catan_name) as name_list
+                FROM catan_identities WHERE discord_id = $1
+            ),
+            ranked AS (
                 SELECT
                     g.id as game_id,
-                    g.lobby_id,
                     g.game_timestamp,
                     ps.vp,
                     ps.is_winner,
                     ps.player_name,
                     ROW_NUMBER() OVER (
-                        PARTITION BY g.lobby_id
-                        ORDER BY g.game_timestamp DESC, ps.is_me DESC, ps.id DESC
+                        PARTITION BY g.lobby_id, g.game_timestamp
+                        ORDER BY ps.is_me DESC, ps.id DESC
                     ) as rn
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                WHERE ps.uploader_id = $1 AND ps.is_me = true
+                WHERE ps.player_name = ANY((SELECT name_list FROM user_aliases))
             )
             SELECT game_id, game_timestamp, vp, is_winner, player_name
             FROM ranked
@@ -107,27 +111,35 @@ export const UserService = {
     },
 
     /**
-     * Server leaderboard using a Bayesian win rate plus activity/VP weighting.
-     * - Bayesian win rate smooths small sample sizes: (wins + 3) / (games + 6)
-     * - Rating blends win quality, VP performance, and activity.
+     * Updated: Global/Server leaderboard now accounts for multiple identities per user.
      */
     async getLeaderboardByGuildId(guildId: string, limit: number = 10) {
         const query = `
-            WITH stats AS (
-                SELECT
-                    u.discord_id,
-                    u.username,
-                    u.avatar_url,
-                    COUNT(ps.id)::int as total_games,
-                    SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::int as wins,
-                    COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
-                    COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
+            WITH user_map AS (
+                SELECT discord_id, array_agg(DISTINCT catan_name) as names
+                FROM catan_identities GROUP BY discord_id
+            ),
+            deduplicated_stats AS (
+                SELECT DISTINCT ON (ps.player_name, ps.vp, ps.activity_stats::text, ps.resource_stats::text)
+                    um.discord_id, ps.is_winner, ps.vp
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                JOIN users u ON ps.uploader_id = u.discord_id
-                WHERE g.guild_id = $1 AND ps.uploader_id IS NOT NULL AND ps.is_me = true
+                JOIN user_map um ON ps.player_name = ANY(um.names)
+                WHERE g.guild_id = $1
+                ORDER BY ps.player_name, ps.vp, ps.activity_stats::text, ps.resource_stats::text, ps.is_me DESC
+            ),
+            stats AS (
+                SELECT
+                    u.discord_id, u.username, u.avatar_url,
+                    COUNT(*)::int as total_games,
+                    SUM(CASE WHEN ds.is_winner THEN 1 ELSE 0 END)::int as wins,
+                    COALESCE(ROUND(AVG(ds.vp)::numeric, 2), 0)::float as avg_vp,
+                    COALESCE(ROUND(((SUM(CASE WHEN ds.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)) * 100)::numeric, 1), 0)::float as win_rate
+                FROM deduplicated_stats ds
+                JOIN users u ON ds.discord_id = u.discord_id
                 GROUP BY u.discord_id, u.username, u.avatar_url
-            ), ranked AS (
+            ), 
+            ranked AS (
                 SELECT
                     *,
                     ROUND((((wins + 3)::float / (total_games + 6)) * 100)::numeric, 2) as bayes_win_rate,
@@ -141,21 +153,10 @@ export const UserService = {
                 FROM stats
             )
             SELECT
-                discord_id,
-                username,
-                avatar_url,
-                total_games,
-                wins,
-                avg_vp,
-                win_rate,
-                bayes_win_rate,
-                rating,
-                ROW_NUMBER() OVER (
-                    ORDER BY rating DESC, wins DESC, avg_vp DESC, total_games DESC, username ASC
-                ) as server_rank
+                discord_id, username, avatar_url, total_games, wins, avg_vp, win_rate, bayes_win_rate, rating,
+                ROW_NUMBER() OVER (ORDER BY rating DESC, wins DESC, avg_vp DESC) as server_rank
             FROM ranked
-            ORDER BY server_rank
-            LIMIT $2;
+            ORDER BY server_rank LIMIT $2;
         `;
 
         const res = await pool.query(query, [guildId, limit]);
@@ -179,21 +180,15 @@ export const UserService = {
         return res.rows[0];
     },
 
-    /**
-     * Option B: Links a specific Catan username to a Discord ID.
-     */
     async linkCatanIdentity(discordId: string, catanName: string) {
         const query = `
           INSERT INTO catan_identities (discord_id, catan_name)
           VALUES ($1, $2)
-          ON CONFLICT (catan_name) DO NOTHING;
+          ON CONFLICT (catan_name) DO UPDATE SET discord_id = EXCLUDED.discord_id;
         `;
         await pool.query(query, [discordId, catanName]);
     },
 
-    /**
-     * Find the Discord User associated with a specific Catan name.
-     */
     async getDiscordIdByCatanName(catanName: string): Promise<string | null> {
         const query = 'SELECT discord_id FROM catan_identities WHERE catan_name = $1';
         const res = await pool.query(query, [catanName]);
