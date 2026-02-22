@@ -36,17 +36,35 @@ export const UserService = {
      */
     async getStatsByDiscordId(discordId: string) {
         const query = `
+        WITH user_aliases AS (
+            SELECT 
+                discord_id,
+                array_agg(DISTINCT catan_name) as name_list,
+                string_agg(DISTINCT catan_name, ', ') as display_names
+            FROM catan_identities
+            WHERE discord_id = $1
+            GROUP BY discord_id
+        ),
+        deduplicated_matches AS (
+            SELECT DISTINCT ON (ps.vp, ps.activity_stats::text, ps.resource_stats::text)
+                ps.is_winner,
+                ps.vp
+            FROM player_stats ps
+            JOIN user_aliases ua ON ps.player_name = ANY(ua.name_list)
+            ORDER BY ps.vp, ps.activity_stats::text, ps.resource_stats::text, ps.is_me DESC
+        )
         SELECT 
-            u.username,
-            COALESCE(COUNT(ps.id), 0)::int as total_games,
-            COALESCE(SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END), 0)::int as wins,
-            COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
-            COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
-        FROM users u
-        LEFT JOIN player_stats ps ON u.discord_id = ps.discord_id AND ps.is_me = true
-        WHERE u.discord_id = $1 
-        GROUP BY u.username;
+            (SELECT display_names FROM user_aliases) as username,
+            COALESCE(COUNT(*), 0)::int as total_games,
+            COALESCE(SUM(CASE WHEN is_winner THEN 1 ELSE 0 END), 0)::int as wins,
+            COALESCE(ROUND(AVG(vp)::numeric, 2), 0)::float as avg_vp,
+            COALESCE(
+                ROUND(((SUM(CASE WHEN is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)) * 100)::numeric, 1), 
+                0
+            )::float as win_rate
+        FROM deduplicated_matches;
         `;
+
         const res = await pool.query(query, [discordId]);
         return res.rows[0];
     },
