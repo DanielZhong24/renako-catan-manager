@@ -502,7 +502,7 @@ export const renderAdminGamesPage = (games: AdminGameRow[]) => {
             <td>${escapeHtml(game.players)}</td>
             <td>${escapeHtml(game.bots)}</td>
             <td>${escapeHtml(game.winner || 'Unknown')}</td>
-            <td><a href="/admin/games/${encodeURIComponent(game.id)}">View</a></td>
+            <td><a href="/admin/games/${encodeURIComponent(game.id)}"><button class="secondary">View</button></a></td>
         </tr>`;
     }).join('');
 
