@@ -37,24 +37,24 @@ export const UserService = {
     async getStatsByDiscordId(discordId: string) {
         const query = `
         WITH user_aliases AS (
-            SELECT 
-                discord_id,
-                array_agg(DISTINCT catan_name) as name_list,
-                string_agg(DISTINCT catan_name, ', ') as display_names
+            SELECT DISTINCT catan_name
             FROM catan_identities
             WHERE discord_id = $1
-            GROUP BY discord_id
+        ),
+        display_names AS (
+            SELECT string_agg(DISTINCT catan_name, ', ') as names
+            FROM user_aliases
         ),
         deduplicated_matches AS (
             SELECT DISTINCT ON (ps.vp, ps.activity_stats::text, ps.resource_stats::text)
                 ps.is_winner,
                 ps.vp
             FROM player_stats ps
-            JOIN user_aliases ua ON ps.player_name = ANY(ua.name_list)
+            WHERE ps.player_name IN (SELECT catan_name FROM user_aliases)
             ORDER BY ps.vp, ps.activity_stats::text, ps.resource_stats::text, ps.is_me DESC
         )
         SELECT 
-            (SELECT display_names FROM user_aliases) as username,
+            (SELECT names FROM display_names) as username,
             COALESCE(COUNT(*), 0)::int as total_games,
             COALESCE(SUM(CASE WHEN is_winner THEN 1 ELSE 0 END), 0)::int as wins,
             COALESCE(ROUND(AVG(vp)::numeric, 2), 0)::float as avg_vp,
@@ -80,7 +80,12 @@ export const UserService = {
      */
     async getHistoryByDiscordId(discordId: string) {
         const query = `
-            WITH ranked AS (
+            WITH user_aliases AS (
+                SELECT DISTINCT catan_name
+                FROM catan_identities 
+                WHERE discord_id = $1
+            ),
+            ranked AS (
                 SELECT
                     g.id as game_id,
                     g.lobby_id,
@@ -94,7 +99,7 @@ export const UserService = {
                     ) as rn
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                WHERE ps.uploader_id = $1 AND ps.is_me = true
+                WHERE ps.player_name IN (SELECT catan_name FROM user_aliases)
             )
             SELECT game_id, game_timestamp, vp, is_winner, player_name
             FROM ranked
@@ -113,19 +118,28 @@ export const UserService = {
      */
     async getLeaderboardByGuildId(guildId: string, limit: number = 10) {
         const query = `
-            WITH stats AS (
-                SELECT
-                    u.discord_id,
-                    u.username,
-                    u.avatar_url,
-                    COUNT(ps.id)::int as total_games,
-                    SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::int as wins,
-                    COALESCE(ROUND(AVG(ps.vp)::numeric, 2), 0)::float as avg_vp,
-                    COALESCE(ROUND(((SUM(CASE WHEN ps.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(ps.id), 0)) * 100)::numeric, 1), 0)::float as win_rate
+            WITH user_map AS (
+                SELECT discord_id, catan_name
+                FROM catan_identities
+            ),
+            deduplicated_stats AS (
+                SELECT DISTINCT ON (ps.player_name, ps.vp, ps.activity_stats::text, ps.resource_stats::text)
+                    um.discord_id, ps.is_winner, ps.vp
                 FROM player_stats ps
                 JOIN games g ON ps.game_id = g.id
-                JOIN users u ON ps.uploader_id = u.discord_id
-                WHERE g.guild_id = $1 AND ps.uploader_id IS NOT NULL AND ps.is_me = true
+                JOIN user_map um ON ps.player_name = um.catan_name
+                WHERE g.guild_id = $1
+                ORDER BY ps.player_name, ps.vp, ps.activity_stats::text, ps.resource_stats::text, ps.is_me DESC
+            ),
+            stats AS (
+                SELECT
+                    u.discord_id, u.username, u.avatar_url,
+                    COUNT(*)::int as total_games,
+                    SUM(CASE WHEN ds.is_winner THEN 1 ELSE 0 END)::int as wins,
+                    COALESCE(ROUND(AVG(ds.vp)::numeric, 2), 0)::float as avg_vp,
+                    COALESCE(ROUND(((SUM(CASE WHEN ds.is_winner THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)) * 100)::numeric, 1), 0)::float as win_rate
+                FROM deduplicated_stats ds
+                JOIN users u ON ds.discord_id = u.discord_id
                 GROUP BY u.discord_id, u.username, u.avatar_url
             ), ranked AS (
                 SELECT
