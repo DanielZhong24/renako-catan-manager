@@ -86,19 +86,41 @@ export const UserService = {
                 FROM catan_identities 
                 WHERE discord_id = $1
             ),
+            game_rollup AS (
+                SELECT
+                    g.id,
+                    g.game_timestamp,
+                    md5(
+                        string_agg(
+                            ps.player_name || ':' || ps.vp || ':' || ps.activity_stats::text,
+                            '|' ORDER BY ps.player_name
+                        )
+                    ) AS match_fingerprint
+                FROM games g
+                LEFT JOIN player_stats ps ON ps.game_id = g.id
+                GROUP BY g.id, g.game_timestamp
+            ),
+            latest_games AS (
+                SELECT DISTINCT ON (match_fingerprint)
+                    id,
+                    game_timestamp,
+                    match_fingerprint
+                FROM game_rollup
+                ORDER BY match_fingerprint, game_timestamp DESC, id DESC
+            ),
             ranked AS (
                 SELECT
-                    g.id as game_id,
-                    g.game_timestamp,
+                    lg.id as game_id,
+                    lg.game_timestamp,
                     ps.vp,
                     ps.is_winner,
                     ps.player_name,
                     ROW_NUMBER() OVER (
-                        PARTITION BY g.lobby_id, g.game_timestamp
+                        PARTITION BY lg.id
                         ORDER BY ps.is_me DESC, ps.id DESC
                     ) as rn
-                FROM player_stats ps
-                JOIN games g ON ps.game_id = g.id
+                FROM latest_games lg
+                JOIN player_stats ps ON ps.game_id = lg.id
                 WHERE ps.player_name IN (SELECT catan_name FROM user_aliases)
             )
             SELECT game_id, game_timestamp, vp, is_winner, player_name
