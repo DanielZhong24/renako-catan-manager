@@ -177,7 +177,7 @@ export const UserService = {
             )
             SELECT
                 discord_id, username, avatar_url, total_games, wins, avg_vp, win_rate, bayes_win_rate, rating,
-                ROW_NUMBER() OVER (ORDER BY rating DESC, wins DESC, avg_vp DESC) as server_rank
+                ROW_NUMBER() OVER (ORDER BY wins DESC, win_rate DESC, avg_vp DESC) as server_rank
             FROM ranked
             ORDER BY server_rank LIMIT $2;
         `;
