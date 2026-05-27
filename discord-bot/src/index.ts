@@ -39,12 +39,11 @@ const handler = new CommandHandler();
 
     client.on(Events.InteractionCreate, async (interaction) => {
         if (!interaction.isChatInputCommand()) return;
-
         const command = commands.get(interaction.commandName);
         if (!command) return;
 
         try {
-            await command.execute(interaction, { api });
+            await command.execute(interaction, { api, commands });
         } catch (error) {
             console.error("Interaction Error:", error);
             if (interaction.deferred || interaction.replied) {

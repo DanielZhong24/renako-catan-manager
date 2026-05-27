@@ -8,6 +8,7 @@ export class HistoryCommand implements IBotCommand {
     data = new SlashCommandBuilder()
         .setName('history')
         .setDescription('View your recent match diary (Renako style!)');
+    aliases = ['h'];
 
     async execute(interaction: ChatInputCommandInteraction, { api }: BotContext): Promise<void> {
         await interaction.deferReply();

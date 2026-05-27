@@ -34,7 +34,14 @@ export class CommandHandler {
             if (CommandClass) {
                 const command: IBotCommand = new CommandClass();
                 this.commands.set(command.data.name, command);
+                // Register any aliases in-memory so they resolve to the same handler
+                if (command.aliases && Array.isArray(command.aliases)) {
+                    for (const alias of command.aliases) {
+                        this.commands.set(alias, command);
+                    }
+                }
                 console.log(`✅ Loaded command: ${command.data.name}`);
+                if (command.aliases && command.aliases.length) console.log(`   ↳ aliases: ${command.aliases.join(', ')}`);
             }
         }
         return this.commands;
@@ -44,10 +51,29 @@ export class CommandHandler {
         try {
             console.log('🔄 Started refreshing application (/) commands.');
 
-            // This pushes your local command definitions to Discord
+            // Build body including aliases as separate slash command entries
+            // Avoid registering duplicate command objects (aliases may cause duplicates in the provided array)
+            const body: any[] = [];
+            const processed = new Set<string>();
+            for (const c of commands) {
+                const primary = c.data?.name;
+                if (!primary || processed.has(primary)) continue;
+                processed.add(primary);
+
+                const json = c.data.toJSON();
+                body.push(json);
+                if (c.aliases && Array.isArray(c.aliases)) {
+                    for (const alias of c.aliases) {
+                        const aliasJson = { ...json, name: alias };
+                        body.push(aliasJson);
+                    }
+                }
+            }
+
+            // This pushes your local command definitions (including aliases) to Discord
             await rest.put(
                 Routes.applicationCommands(process.env.DISCORD_CLIENT_ID!),
-                { body: commands.map(c => c.data.toJSON()) },
+                { body },
             );
 
             console.log('✅ Successfully reloaded application (/) commands.');

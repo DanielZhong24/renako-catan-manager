@@ -3,6 +3,7 @@ import { BotContext } from './BotContext.js';
 
 export interface IBotCommand {
     data: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
+    aliases?: string[];
     execute(interaction: ChatInputCommandInteraction, context: BotContext): Promise<void>;
 }
 export interface MatchTitles {
