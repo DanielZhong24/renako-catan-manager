@@ -9,6 +9,7 @@ export class LinkCommand implements IBotCommand {
     data = new SlashCommandBuilder()
         .setName('link')
         .setDescription('Check your connection status');
+    aliases = ['lk'];
 
     async execute(interaction: ChatInputCommandInteraction, { api }: BotContext): Promise<void> {
         // 1. Defer so the bot doesn't time out while waiting for the API

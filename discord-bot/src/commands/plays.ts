@@ -8,6 +8,7 @@ export class PlayCommand implements IBotCommand {
     data = new SlashCommandBuilder()
         .setName('play')
         .setDescription('Start a game!');
+    aliases = ['p'];
 
     async execute(interaction: ChatInputCommandInteraction, { api }: BotContext): Promise<void> {
         const uploaderId = interaction.user.id;

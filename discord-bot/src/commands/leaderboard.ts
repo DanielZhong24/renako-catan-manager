@@ -29,6 +29,7 @@ export class LeaderboardCommand implements IBotCommand {
 	data = new SlashCommandBuilder()
 		.setName('leaderboard')
 		.setDescription('View the server leaderboard (ranking is smarter than it looks)');
+	aliases = ['l'];
 
 	async execute(interaction: ChatInputCommandInteraction, { api }: BotContext): Promise<void> {
 		if (!interaction.deferred && !interaction.replied) {

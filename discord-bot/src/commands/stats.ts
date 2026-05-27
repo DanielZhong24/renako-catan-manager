@@ -9,6 +9,7 @@ export class StatsCommand implements IBotCommand {
     data = new SlashCommandBuilder()
         .setName('stats')
         .setDescription('View your Catan career (if Renako doesn\'t collapse first)');
+    aliases = ['s'];
 
     async execute(interaction: ChatInputCommandInteraction, { api }: BotContext): Promise<void> {
         await interaction.deferReply();

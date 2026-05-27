@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: sh -c "npm ci --include=dev && npm run dev"
+    environment:
+      - DATABASE_URL=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-catan_db}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - REDIRECT_URI=${REDIRECT_URI}
+      - DISCORD_AUTH_URL=${DISCORD_AUTH_URL}
+      - EXTENSION_ID=${EXTENSION_ID}
+      - REDIS_URL=redis://cache:6379
+      - CHOKIDAR_USEPOLLING=true
+
+  discord-bot:
+    build: ./discord-bot
+    volumes:
+      - ./discord-bot:/app
+      - /app/node_modules
+    command: sh -c "npm ci --include=dev && npm run dev"
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - API_BASE_URL=${API_BASE_URL}
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - api
