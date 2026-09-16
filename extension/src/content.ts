@@ -18,6 +18,24 @@ const STAT_MAP: Record<string, string> = {
 let isProcessingGame = false;
 let lastLoggedLobby: string | null = null;
 let failedLobbies = new Set<string>(); // Blacklist failed lobbies to prevent re-scraping
+let recordedGameId: string | null = null;
+let recordedGameLog: unknown[] = [];
+
+window.addEventListener('renako-game-complete', (event) => {
+    try {
+        const detail = JSON.parse((event as CustomEvent<string>).detail) as {
+            gameId?: string;
+            events?: unknown[];
+        };
+        if (detail.gameId && Array.isArray(detail.events)) {
+            recordedGameId = detail.gameId;
+            recordedGameLog = detail.events;
+            console.log(`[Catan Logger] Captured ${recordedGameLog.length} full-game events for ${recordedGameId}`);
+        }
+    } catch (error) {
+        console.error('[Catan Logger] Invalid full-game recording event', error);
+    }
+});
 
 /**
  * Display an in-page notification banner to the user
@@ -131,14 +149,15 @@ const processAndSend = async (currentLobby: string) => {
         };
 
         const payload = {
-            lobbyId: currentLobby,
+            lobbyId: recordedGameId || currentLobby,
             timestamp: new Date().toISOString(),
             overview: overviewWithIdentity,
             dice_stats: stats.dice_stats || {},
             res_card_stats: stats.res_card_stats || {},
             dev_card_stats: stats.dev_card_stats || {},
             activity_stats: zipTable(stats.activity_stats),
-            resource_stats: zipTable(stats.resource_stats)
+            resource_stats: zipTable(stats.resource_stats),
+            game_log: recordedGameLog
         };
 
         console.log(payload);
@@ -186,7 +205,9 @@ const processAndSend = async (currentLobby: string) => {
             message: 'Game recorded successfully!'
         }).catch(() => {});
         
-        lastLoggedLobby = currentLobby;
+        lastLoggedLobby = payload.lobbyId;
+        recordedGameId = null;
+        recordedGameLog = [];
 
     // Inside processAndSend catch block
     } catch (err) {
@@ -215,7 +236,8 @@ const observer = new MutationObserver(() => {
     }
 
     // 2. If end-game modal appears, trigger upload (but skip blacklisted lobbies)
-    if (modal && !isProcessingGame && lobbyId !== lastLoggedLobby && !failedLobbies.has(lobbyId)) {
+    const gameId = recordedGameId || lobbyId;
+    if (modal && !isProcessingGame && gameId !== lastLoggedLobby && !failedLobbies.has(gameId)) {
         processAndSend(lobbyId);
     }
 });

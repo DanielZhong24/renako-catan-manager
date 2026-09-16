@@ -22,6 +22,7 @@ export interface GameStats {
   dev_card_stats: Record<string, number>;
   activity_stats: Array<Record<string, any>>;
   resource_stats: Array<Record<string, any>>;
+  game_log?: unknown[];
 }
 
 export interface IScraperStrategy {

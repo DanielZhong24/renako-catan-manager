@@ -109,6 +109,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle success notifications
   if (message.type === 'SUCCESS_NOTIFICATION') {
     console.log('✅ Game submitted successfully');
+
+    chrome.storage.local.set({
+      lastSuccess: message.message || 'Game recorded successfully!',
+      lastSuccessTime: Date.now()
+    });
+
+    // Open the popup so displaySuccessMessage can show the confirmation.
+    chrome.action.openPopup();
     
     // Set success badge
     chrome.action.setBadgeText({ text: '✓' });

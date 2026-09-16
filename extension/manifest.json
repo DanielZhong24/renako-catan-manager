@@ -28,6 +28,12 @@
   },
   "content_scripts": [
     {
+      "world": "MAIN",
+      "run_at": "document_start",
+      "js": ["recorder.js"],
+      "matches": ["https://colonist.io/*"]
+    },
+    {
       "matches": ["https://colonist.io/*"],
       "js": ["content.js"]
     }
