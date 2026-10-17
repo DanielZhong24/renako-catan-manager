@@ -10,16 +10,17 @@ export const GameService = {
         
         // 1. (Keep your existing INSERT INTO games logic here...)
         const gameRes = await client.query(
-          `INSERT INTO games (user_id, lobby_id, guild_id, game_timestamp, dice_stats, res_card_stats, dev_card_stats)
-          VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            `INSERT INTO games (user_id, lobby_id, guild_id, game_timestamp, dice_stats, res_card_stats, dev_card_stats, game_log)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
           ON CONFLICT (lobby_id, game_timestamp) 
           DO UPDATE SET 
               guild_id = EXCLUDED.guild_id,
               dice_stats = EXCLUDED.dice_stats,
               res_card_stats = EXCLUDED.res_card_stats,
-              dev_card_stats = EXCLUDED.dev_card_stats
+              dev_card_stats = EXCLUDED.dev_card_stats,
+              game_log = EXCLUDED.game_log
           RETURNING id`,
-          [userId, data.lobbyId, guildId, data.timestamp, JSON.stringify(data.dice_stats), JSON.stringify(data.res_card_stats), JSON.stringify(data.dev_card_stats || {})]
+            [userId, data.lobbyId, guildId, data.timestamp, JSON.stringify(data.dice_stats), JSON.stringify(data.res_card_stats), JSON.stringify(data.dev_card_stats || {}), JSON.stringify(data.game_log || [])]
         );
 
         const gameId = gameRes.rows[0].id;

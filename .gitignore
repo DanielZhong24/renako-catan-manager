@@ -1,3 +1,10 @@
 .env*
 !.env.example
 *.zip
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+dist/
+**/dist/
+.DS_Store

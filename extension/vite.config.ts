@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         popup:'popup.html',
         content: 'src/content.ts',
+        recorder: 'src/recorder.ts',
         background: 'src/background.ts', // <--- ADD THIS LINE
       },
       output: {

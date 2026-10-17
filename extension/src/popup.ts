@@ -80,8 +80,8 @@ function showSuccessAnimation() {
 }
 
 // --- 2. INITIAL LOAD ---
-chrome.storage.local.get(['apiKey', 'discordId', 'connectionTimestamp', 'lastError'], (result) => {
-  const data = result as RenakoStorage & { lastError?: string };
+chrome.storage.local.get(['apiKey', 'discordId', 'connectionTimestamp', 'lastError', 'lastSuccess'], (result) => {
+  const data = result as RenakoStorage & { lastError?: string; lastSuccess?: string };
   
   // Check for and display errors first
   if (data.lastError) {
@@ -89,6 +89,11 @@ chrome.storage.local.get(['apiKey', 'discordId', 'connectionTimestamp', 'lastErr
     // Still show the account section even if there's an error
     updateUI(data.apiKey, data.discordId);
     return;
+  }
+
+  if (data.lastSuccess) {
+    displaySuccessMessage(data.lastSuccess);
+    chrome.storage.local.remove('lastSuccess');
   }
   
   // Check if this is a fresh connection (within last 5 seconds)
