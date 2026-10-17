@@ -170,6 +170,24 @@ const recordMessage = async (event: MessageEvent) => {
     const message = new MessagePackDecoder(new Uint8Array(buffer)).decode();
     const eventType = getEventType(message);
 
+    const shouldForward = [
+      1, 4, 28, 30, 31, 33, 43, 45, 91
+    ].includes(eventType ?? -1);
+
+    if (shouldForward) {
+      const gameId = activeGameId || getGameId(message);
+
+      if (gameId) {
+        const data = message as any;
+        const botColor =
+          data?.data?.payload?.playerColor ??
+          data?.data?.payload?.gameState?.currentState?.currentTurnPlayerColor ??
+          null;
+
+        await sendBotEvent(gameId, botColor, message);
+      }
+    }
+
     if (activeGameId) {
       recordedEvents.push(message);
       if (eventType === GAME_END_TYPE) {
@@ -191,6 +209,29 @@ const recordMessage = async (event: MessageEvent) => {
   } catch (error) {
     console.debug('[Renako] Unable to decode Colonist WebSocket message', error);
   }
+};
+
+const sendBotEvent = async (
+  gameId: string,
+  botColor: number | null,
+  message: MessagePackValue
+) => {
+  const response = await fetch('http://localhost:8000/api/bot/games/events', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      game_id: gameId,
+      bot_color: botColor,
+      event: message
+    })
+  });
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Bot API ${response.status}: ${responseText}`);
+  }
+  console.log('[Renako] Bot API response:', responseText);
 };
 
 const OriginalWebSocket = window.WebSocket;
