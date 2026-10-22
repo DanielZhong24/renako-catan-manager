@@ -28,7 +28,10 @@ export const gameSchema = z.object({
   
   // Detailed activity/resource logs for deep-dive analytics
   activity_stats: z.array(z.any()),
-  resource_stats: z.array(z.any())
+  resource_stats: z.array(z.any()),
+
+  // Complete decoded Colonist WebSocket event stream for replay/history
+  game_log: z.array(z.any()).optional()
 });
 
 export interface MatchTitles {

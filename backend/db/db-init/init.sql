@@ -25,9 +25,12 @@ CREATE TABLE IF NOT EXISTS games (
     dice_stats JSONB NOT NULL,
     res_card_stats JSONB,
     dev_card_stats JSONB,
+    game_log JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (lobby_id, game_timestamp)
 );
+
+ALTER TABLE games ADD COLUMN IF NOT EXISTS game_log JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS player_stats (
     id SERIAL PRIMARY KEY,
