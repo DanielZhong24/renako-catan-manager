@@ -179,7 +179,7 @@ const processAndSend = async (currentLobby: string) => {
         console.log(payload);
 
 
-        const response = await fetch('http://localhost:3000/api/games/ingest', {
+        const response = await fetch(`${__API_BASE_URL__}/api/games/ingest`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',

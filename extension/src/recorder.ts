@@ -623,7 +623,8 @@ const sendBotEvent = async (
   if (typeof botColor === 'number') {
     activeBotColor = botColor;
   }
-  const response = await fetch('http://localhost:8000/api/bot/games/events', {
+  if (!__BOT_SERVICE_URL__) return; // No bot service configured for this build.
+  const response = await fetch(`${__BOT_SERVICE_URL__}/api/bot/games/events`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

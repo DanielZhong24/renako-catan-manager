@@ -33,8 +33,11 @@ watch process automatically.
 | `DISCORD_TOKEN` | Bot token used to log in and register commands. |
 | `DISCORD_CLIENT_ID` | Discord application ID used for command registration. |
 | `API_BASE_URL` | URL placed in login links, normally `http://localhost:3000`. |
-| `INTERNAL_API_URL` | Backend URL used by `ApiClient`; defaults to `http://api:3000`. |
+| `INTERNAL_API_URL` | Backend URL used by `ApiClient`; defaults to `http://api:3000`. The default only resolves inside the Compose network, so set it to the backend's public URL when the bot runs elsewhere. |
 | `PORT` | Internal bot HTTP port; defaults to `3001`. |
+
+The backend reaches this bot at the URL in its own `BOT_INTERNAL_URL` variable
+(default `http://discord-bot:3001`), not through a variable on the bot.
 
 ## Structure
 

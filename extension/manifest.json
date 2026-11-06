@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Renako Colonist Game Logger",
-  "version": "1.1",
+  "version": "1.2",
   "permissions": ["storage", "notifications"],
   "action":{
     "default_popup":"popup.html",
@@ -21,10 +21,11 @@
   "host_permissions": [
     "http://localhost:3000/*",
     "http://localhost/*",
-    "https://renako.ootduck.com/*"
+    "https://renako.ootduck.com/*",
+    "https://amaori-renako.com/*"
   ],
   "externally_connectable": {
-    "matches": ["http://localhost/*", "http://localhost:3000/*","https://renako.ootduck.com/*"]
+    "matches": ["http://localhost/*", "http://localhost:3000/*","https://renako.ootduck.com/*","https://amaori-renako.com/*"]
   },
   "content_scripts": [
     {
