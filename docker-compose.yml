@@ -88,6 +88,8 @@ services:
       dockerfile: catan-clanker/Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./catan-clanker/data/gameHistory:/app/catan-clanker/data/gameHistory
 
 
 #   tunnel:

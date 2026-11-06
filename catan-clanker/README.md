@@ -2,8 +2,8 @@
 
 A FastAPI service that takes recorded Colonist.io websocket events, rebuilds the
 game state, and returns the move a trained policy would make. The extension's
-recorder is its only client. It is optional: stats uploads and game recording do
-not depend on it.
+recorder is its only client. Stats uploads do not depend on it, but saving a
+local game log requires the service to be running.
 
 ## How it works
 
@@ -41,6 +41,12 @@ Responses:
 Processing errors return HTTP 400 with the exception message. CORS allows
 `POST`/`OPTIONS` from `https://colonist.io` only.
 
+`POST /api/bot/games/logs` accepts `{"gameId": "...", "events": [...]}` and
+appends one JSON object per game to `data/gameHistory/games.jsonl`. The
+extension posts to `http://localhost:8000` even in a production build; the
+service must be running on the same machine as the browser. The browser
+console reports save failures.
+
 ## Running
 
 With Docker (from the repository root):
@@ -51,13 +57,15 @@ docker compose up --build catan-clanker
 
 The service listens on port `8000`. The image is built from the repository
 root because the Dockerfile copies both `catan-clanker/` and `models/`.
+Compose mounts `data/gameHistory/` so saved logs remain on the host after the
+container is recreated. The JSONL log is ignored by Git.
 
 Without Docker, from this directory (Python 3.12):
 
 ```sh
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-python -m uvicorn bot_api:app --port 8000
+PYTHONPATH=vendor python -m uvicorn clanker.bot_api:app --port 8000
 ```
 
 ## Deployment notes

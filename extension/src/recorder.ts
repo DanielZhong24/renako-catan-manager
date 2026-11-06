@@ -261,7 +261,6 @@ let activeSocket: WebSocket | null = null;
 // outbound frames; a code of null means "not yet captured, log and skip".
 // Action guess:
 // select bank trade: 47
-// steal: [Renako] Outbound frame: [3,1,6,48,49,56,70,48,55,{"action":5,"payload":3,"sequence":28}] - payload is the target player ID
 //[Renako] Outbound frame: [3,1,6,48,55,66,70,50,65,{"action":49,"payload":{"creator":1,"isBankTrade":true,"counterOfferInResponseToTradeId":null,"offeredResources":[1,1,1,1],"wantedResources":[5]},"sequence":40}]
 const GAME_ACTION_CODES: Record<string, number | null> = {
   ROLL: 2,
@@ -463,16 +462,23 @@ const getGameId = (message: MessagePackValue): string | null => {
   return typeof payload.databaseGameId === 'string' ? payload.databaseGameId : null;
 };
 
-const downloadGameLog = (gameId: string, events: MessagePackValue[]) => {
-  const blob = new Blob([JSON.stringify(events)], { type: 'application/json' });
-  const anchor = document.createElement('a');
-  anchor.href = URL.createObjectURL(blob);
-  anchor.download = `renako-${gameId}.json`;
-  anchor.hidden = true;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(anchor.href);
+const saveGameLog = async (
+  gameId: string,
+  events: MessagePackValue[]
+) => {
+  const response = await fetch('http://localhost:8000/api/bot/games/logs', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      gameId,
+      events,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Game log API ${response.status}: ${await response.text()}`);
+  }
 };
 
 const respondedTradeIds = new Set<string>();
@@ -597,18 +603,22 @@ const recordMessage = async (event: MessageEvent) => {
     recordedEvents.push(message);
     if (eventType === GAME_END_TYPE) {
       const completedGameId = activeGameId;
-      console.log(
-        `[Renako] GAME END detected. game=${completedGameId} events=${recordedEvents.length}`
-      );
-      window.dispatchEvent(new CustomEvent('renako-game-complete', {
-        detail: JSON.stringify({ gameId: completedGameId, events: recordedEvents })
-      }));
-      console.log('[Renako] Dispatched renako-game-complete; downloading game log file');
-      downloadGameLog(completedGameId, recordedEvents);
+      const completedEvents = recordedEvents.splice(0);
       activeGameId = null;
       activeBotColor = null;
       respondedTradeIds.clear();
-      recordedEvents.length = 0;
+      console.log(
+        `[Renako] GAME END detected. game=${completedGameId} events=${completedEvents.length}`
+      );
+      window.dispatchEvent(new CustomEvent('renako-game-complete', {
+        detail: JSON.stringify({ gameId: completedGameId, events: completedEvents })
+      }));
+      try {
+        await saveGameLog(completedGameId, completedEvents);
+        console.log(`[Renako] Saved game log for ${completedGameId}`);
+      } catch (error) {
+        console.error(`[Renako] Failed to save game log for ${completedGameId}:`, error);
+      }
     }
   } catch (error) {
     console.error('[Renako] Bot pipeline error (message not forwarded):', error);
