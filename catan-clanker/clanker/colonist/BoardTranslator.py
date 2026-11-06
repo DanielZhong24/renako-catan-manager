@@ -1,4 +1,4 @@
-from colonist_encoder import COLONIST_PORT_TYPE_TO_CATANATRON, FEATURE_VERSION, WEBSOCKET_SCHEMA_VERSION, EncodingError, _location_coordinate, _board_coordinate_maps, _axial_to_cube, feature_manifest
+from clanker.colonist.colonist_encoder import COLONIST_PORT_TYPE_TO_CATANATRON, FEATURE_VERSION, WEBSOCKET_SCHEMA_VERSION, EncodingError, _location_coordinate, _board_coordinate_maps, _axial_to_cube, feature_manifest
 from typing import Any, Callable
 from catanatron.models.board import STATIC_GRAPH
 from catanatron.models.tiles import LandTile

@@ -4,8 +4,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR.parent / "models" / "teacher_policy_v1.pt"
+MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "teacher_policy_v1.pt"
 
 
 class PolicyNetwork(nn.Module):

@@ -1,11 +1,11 @@
-from colonist_encoder import (
+from clanker.colonist.colonist_encoder import (
     ColonistWebsocketEncoder,
 )
 from catanatron.models.actions import inner_maritime_trade_possibilities, generate_playable_actions
 from catanatron.models.enums import RESOURCES
 from catanatron.state_functions import player_num_resource_cards
-from policy import predict_action
-from BoardTranslator import (
+from clanker.policy import predict_action
+from clanker.colonist.BoardTranslator import (
     BoardTranslator, 
     build_game_from_observation, 
     encode_catanatron_game

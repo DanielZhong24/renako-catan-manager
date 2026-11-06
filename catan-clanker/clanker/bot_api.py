@@ -1,7 +1,11 @@
+import json
+from pathlib import Path
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from live_session import LiveGameSession
+from clanker.live_session import LiveGameSession
 
 app = FastAPI()
 sessions = {}
@@ -41,3 +45,25 @@ def receive_event(request: EventRequest):
         return result
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+
+LOG_FILE = Path(__file__).resolve().parents[1] / "data" / "gameHistory" / "games.jsonl"
+
+
+class GameLogRequest(BaseModel):
+    gameId: str
+    events: list[Any]
+
+
+@app.post("/api/bot/games/logs")
+def save_game_log(payload: GameLogRequest):
+    record = {
+        "game_id": payload.gameId,
+        "events": payload.events,
+    }
+
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+    return {"status": "saved"}
