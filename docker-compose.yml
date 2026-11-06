@@ -6,7 +6,7 @@ services:
     volumes:
       - ./backend:/app          
       - /app/node_modules  
-    command: npm run dev     
+    command: sh -c "npm install --include=dev && npm run dev"     
     environment:
           - DATABASE_URL=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-catan_db}
           - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -71,7 +71,7 @@ services:
     volumes:
       - ./discord-bot:/app
       - /app/node_modules
-    command: npm run dev
+    command: sh -c "npm install --include=dev && npm run dev"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -79,6 +79,14 @@ services:
       - CHOKIDAR_USEPOLLING=true
     depends_on:
       - api
+  
+  catan-clanker:
+    build:
+      context: .
+      dockerfile: catan-clanker/Dockerfile
+    ports:
+      - "8000:8000"
+
 
 #   tunnel:
 #     container_name: renako-tunnel
