@@ -376,11 +376,22 @@ const sendGameFrame = (code: number, payload: MessagePackValue) => {
   console.log('[Renako] Sent bot action hex:', toHex(frame));
 };
 
-const BOT_SENDS_ACTIONS = true;
+// Off until the user enables it in the popup. This script runs in the page's
+// MAIN world and cannot read chrome.storage, so content.ts relays the setting.
+let botSendsActions = false;
+window.addEventListener('renako-settings', (event) => {
+  try {
+    const settings = JSON.parse((event as CustomEvent<string>).detail) as { botSendsActions?: boolean };
+    botSendsActions = settings.botSendsActions === true;
+    console.log('[Renako] Bot sends actions:', botSendsActions);
+  } catch (error) {
+    console.error('[Renako] Invalid settings event', error);
+  }
+});
 
 const sendBotAction = (action: { type: string; parameter: unknown; victim?: number | null }, kind?: string) => {
   console.log('[Renako] Bot action decision:', JSON.stringify(action));
-  if (!BOT_SENDS_ACTIONS) return;
+  if (!botSendsActions) return;
   if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
     console.warn('[Renako] No open socket for bot action', action);
     return;
@@ -541,6 +552,7 @@ const recordMessage = async (event: MessageEvent) => {
       const gameId = getGameId(message);
       if (gameId) {
         activeGameId = gameId;
+        console.log(`[Renako] GAME START detected. game=${gameId}; recording`);
         const startPayload = (message as { data?: { payload?: { serverId?: unknown } } })?.data?.payload;
         if (typeof startPayload?.serverId === 'string') {
           activeServerId = startPayload.serverId;
@@ -574,15 +586,24 @@ const recordMessage = async (event: MessageEvent) => {
         data?.data?.payload?.gameState?.currentState?.currentTurnPlayerColor ??
         null;
 
-      await sendBotEvent(activeGameId, botColor, message);
+      // A bot-service failure must not stop recording (including GAME_END).
+      try {
+        await sendBotEvent(activeGameId, botColor, message);
+      } catch (error) {
+        console.warn('[Renako] Bot service unavailable; recording continues:', error);
+      }
     }
 
     recordedEvents.push(message);
     if (eventType === GAME_END_TYPE) {
       const completedGameId = activeGameId;
+      console.log(
+        `[Renako] GAME END detected. game=${completedGameId} events=${recordedEvents.length}`
+      );
       window.dispatchEvent(new CustomEvent('renako-game-complete', {
         detail: JSON.stringify({ gameId: completedGameId, events: recordedEvents })
       }));
+      console.log('[Renako] Dispatched renako-game-complete; downloading game log file');
       downloadGameLog(completedGameId, recordedEvents);
       activeGameId = null;
       activeBotColor = null;
