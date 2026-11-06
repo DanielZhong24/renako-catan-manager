@@ -210,6 +210,15 @@ function displaySuccessMessage(successText: string) {
   }, 5000);
 }
 
+// --- 4c. BOT AUTOPLAY TOGGLE ---
+const botToggle = document.getElementById('bot-sends-actions') as HTMLInputElement;
+chrome.storage.local.get(['botSendsActions'], (result) => {
+  botToggle.checked = result.botSendsActions === true;
+});
+botToggle.addEventListener('change', () => {
+  chrome.storage.local.set({ botSendsActions: botToggle.checked });
+});
+
 // --- 5. DISCONNECT LOGIC ---
 disconnectBtn.addEventListener('click', () => {
   if (confirm("Disconnect Renako? This will clear your API session.")) {
