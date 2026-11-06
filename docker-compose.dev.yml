@@ -14,6 +14,8 @@ services:
       - REDIRECT_URI=${REDIRECT_URI}
       - DISCORD_AUTH_URL=${DISCORD_AUTH_URL}
       - EXTENSION_ID=${EXTENSION_ID}
+      - BOT_INTERNAL_URL=${BOT_INTERNAL_URL:-http://discord-bot:3001}
+      - ALLOW_BOT_GAMES=${ALLOW_BOT_GAMES:-false}
       - REDIS_URL=redis://cache:6379
       - CHOKIDAR_USEPOLLING=true
 

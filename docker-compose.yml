@@ -6,7 +6,7 @@ services:
     volumes:
       - ./backend:/app          
       - /app/node_modules  
-    command: npm run dev     
+    command: sh -c "npm install --include=dev && npm run dev"     
     environment:
           - DATABASE_URL=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-catan_db}
           - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -14,6 +14,8 @@ services:
           - REDIRECT_URI=${REDIRECT_URI}
           - DISCORD_AUTH_URL=${DISCORD_AUTH_URL}
           - EXTENSION_ID=${EXTENSION_ID}
+          - BOT_INTERNAL_URL=${BOT_INTERNAL_URL:-http://discord-bot:3001}
+          - ALLOW_BOT_GAMES=${ALLOW_BOT_GAMES:-false}
           - REDIS_URL=redis://cache:6379
           - CHOKIDAR_USEPOLLING=true
     depends_on:
@@ -30,7 +32,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
       - POSTGRES_DB=${DB_NAME:-catan_db}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - catan_data:/var/lib/postgresql/data
       - ./backend/db/db-init:/docker-entrypoint-initdb.d
@@ -71,7 +73,7 @@ services:
     volumes:
       - ./discord-bot:/app
       - /app/node_modules
-    command: npm run dev
+    command: sh -c "npm install --include=dev && npm run dev"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -79,6 +81,14 @@ services:
       - CHOKIDAR_USEPOLLING=true
     depends_on:
       - api
+  
+  catan-clanker:
+    build:
+      context: .
+      dockerfile: catan-clanker/Dockerfile
+    ports:
+      - "8000:8000"
+
 
 #   tunnel:
 #     container_name: renako-tunnel

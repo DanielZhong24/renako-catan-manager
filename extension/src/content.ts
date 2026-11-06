@@ -37,6 +37,22 @@ window.addEventListener('renako-game-complete', (event) => {
     }
 });
 
+// recorder.ts runs in the page's MAIN world and cannot read chrome.storage,
+// so relay the user's popup settings to it.
+const relaySettings = (botSendsActions: boolean) => {
+    window.dispatchEvent(new CustomEvent('renako-settings', {
+        detail: JSON.stringify({ botSendsActions })
+    }));
+};
+chrome.storage.local.get(['botSendsActions'], (result) => {
+    relaySettings(result.botSendsActions === true);
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.botSendsActions) {
+        relaySettings(changes.botSendsActions.newValue === true);
+    }
+});
+
 /**
  * Display an in-page notification banner to the user
  */
@@ -163,7 +179,7 @@ const processAndSend = async (currentLobby: string) => {
         console.log(payload);
 
 
-        const response = await fetch('http://localhost:3000/api/games/ingest', {
+        const response = await fetch(`${__API_BASE_URL__}/api/games/ingest`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',

@@ -2,11 +2,10 @@ import json
 import unittest
 from pathlib import Path
 
+from BoardTranslator import build_game_from_observation, encode_catanatron_game
 from colonist_encoder import (
     ColonistWebsocketEncoder,
     _normalize_state,
-    build_game_from_observation,
-    encode_catanatron_game,
 )
 
 

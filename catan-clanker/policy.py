@@ -4,7 +4,8 @@ from pathlib import Path
 import torch
 from torch import nn
 
-MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "teacher_policy_v1.pt"
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR.parent / "models" / "teacher_policy_v1.pt"
 
 
 class PolicyNetwork(nn.Module):
@@ -40,36 +41,20 @@ ACTION_BY_INDEX = {
     for action, index in ACTION_VOCABULARY.items()
 }
 
-def predict_action(features, legal_actions, game):
-    if not legal_actions:
-        raise ValueError("No legal actions available")
-
+def predict_action(features, legal_actions, game, actor_color=None):
+    color = actor_color or game.state.current_color().value
+    # Vocabulary keys are compact JSON (no spaces), e.g. ["RED","END_TURN",null]
+    known = [
+        (a, ACTION_VOCABULARY[json.dumps([color, a["type"], a["parameter"]], separators=(",", ":"))])
+        for a in legal_actions
+        if json.dumps([color, a["type"], a["parameter"]], separators=(",", ":")) in ACTION_VOCABULARY
+    ]
+    if not known:
+        return legal_actions[0]
     with torch.no_grad():
-        input_tensor = torch.tensor(
-            [features],
-            dtype=torch.float32,
-        )
-        output = model(input_tensor)
-
-    top_values, top_indices = torch.topk(output[0], k=5)
-    print("MODEL_OUTPUT_SHAPE:", tuple(output.shape), flush=True)
-    print(
-        "MODEL_TOP_PREDICTIONS:",
-        [
-            {
-                "index": int(index),
-                "score": float(value),
-                "action": ACTION_BY_INDEX[int(index)],
-            }
-            for value, index in zip(top_values, top_indices)
-        ],
-        flush=True,
-    )
-    print("LEGAL_ACTIONS:", legal_actions, flush=True)
-
-    # Location/action vocabulary translation is not complete yet. Keep the
-    # live service safe by returning a legal action while exposing the model's
-    # actual top predictions for verification.
-    selected_action = legal_actions[0]
-    print("SELECTED_LEGAL_FALLBACK:", selected_action, flush=True)
-    return selected_action
+        logits = model(torch.tensor([features], dtype=torch.float32))[0]
+    # argmax over masked logits yields a vocabulary index, not a position in
+    # legal_actions, so the winning action must be resolved by its vocab index.
+    best = max(known, key=lambda pair: logits[pair[1]])
+    print("SELECTED_ACTION:", best[0], flush=True)
+    return best[0]

@@ -85,7 +85,11 @@ configuration.
 
 The request body must contain `lobbyId`, an ISO `timestamp`, `overview`,
 `dice_stats`, `res_card_stats`, `activity_stats`, and `resource_stats`.
-Each overview player includes `name`, `vp`, `isBot`, `isWinner`, and `isMe`.
+`dev_card_stats` and `game_log` (the full recorded websocket event stream) are
+optional. Each overview player includes `name`, `vp`, `isBot`, `isWinner`, and
+`isMe`. Games with one human and three or more bots are rejected with
+`400 Bot Farming Detected` unless `ALLOW_BOT_GAMES=true` is set, which is meant
+for local testing only.
 The uploader is identified by the API key. The operation links the uploader's
 Catan name, resolves a guild from an active session when possible, and writes
 the game and player rows in a PostgreSQL transaction.
@@ -145,10 +149,15 @@ routes after `/admin/login`.
 4. `GameService` upserts the game, replaces its player rows, and commits the
 	 transaction.
 5. For guild games, the backend requests a match-summary announcement from the
-	 bot's `/announce` endpoint.
+	 bot's `/announce` endpoint, at `BOT_INTERNAL_URL` (default
+	 `http://discord-bot:3001`).
 
 ## Troubleshooting
 
+- `400 Bot Farming Detected`: the game had one human and three or more bots.
+	Set `ALLOW_BOT_GAMES=true` for local testing and recreate the API container.
+- Announcements not appearing: check `BOT_INTERNAL_URL` points at the running
+	bot. Failures are only logged, because the announcement is fire-and-forget.
 - `401 Missing API Key`: connect the extension through Discord first.
 - `403 Invalid API Key`: the extension has stale credentials; use `/link` and
 	reconnect it.

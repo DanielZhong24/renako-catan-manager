@@ -25,11 +25,13 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
         }
 
         // --- 🛡️ 2. BOT FARMING CHECK ---
+        // Enforced unless ALLOW_BOT_GAMES=true (local testing only; never set in prod).
+        const allowBotGames = process.env.ALLOW_BOT_GAMES === 'true';
         const botCount = data.overview.filter((p: any) => p.isBot).length;
         const totalPlayers = data.overview.length;
         const humanCount = totalPlayers - botCount;
 
-        if (humanCount === 1 && botCount >= 3) {
+        if (!allowBotGames && humanCount === 1 && botCount >= 3) {
             return c.json({ success: false, error: 'Bot Farming Detected' }, 400);
         }
 
@@ -66,7 +68,8 @@ gameRoutes.post('/ingest', zValidator('json', gameSchema), async (c) => {
         if (gameId && finalGuildId !== 'GLOBAL' && uploaderSession) {
             try {
                 const summary = await GameService.getMatchSummary(gameId);
-                fetch(`https://discord-bot-production-7da0.up.railway.app/announce`, {
+                const botUrl = process.env.BOT_INTERNAL_URL || 'http://discord-bot:3001';
+                fetch(`${botUrl}/announce`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ summary, guildId: finalGuildId, channelId: targetChannelId })
