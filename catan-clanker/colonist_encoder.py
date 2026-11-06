@@ -6,10 +6,9 @@ Catanatron-compatible Game built with the board/player lookup tables for the
 source game; this module validates that final boundary rather than guessing
 Colonist corner, edge, and tile IDs.
 """
-
+"""143, 122, 94 invalid websocket sequence"""
 import copy
 import json
-import networkx as nx
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
@@ -25,10 +24,11 @@ from catanatron.models.enums import (
     WOOD,
     EdgeRef,
     NodeRef,
+    ActionPrompt,
 )
 from catanatron.models.map import BASE_MAP_TEMPLATE, CatanMap
 from catanatron.models.player import Color, SimplePlayer
-from catanatron.models.tiles import LandTile
+
 
 WEBSOCKET_SCHEMA_VERSION = "colonist_ws_v1"
 FEATURE_VERSION = "catanatron_v1"
@@ -56,7 +56,14 @@ CARD_IDS = {
     11: "year_of_plenty",
 }
 
-
+COLONIST_PORT_TYPE_TO_CATANATRON = {
+    1: None,
+    2: WOOD,
+    3: BRICK,
+    4: SHEEP,
+    5: WHEAT,
+    6: ORE,
+}
 class EncodingError(ValueError):
     """Raised when a capture cannot be safely encoded."""
 
@@ -97,6 +104,8 @@ def _normalize_state(metadata: dict, snapshot: dict, source_sequence: int) -> di
         "play_order": snapshot.get("playOrder", []),
         "phase": "UNKNOWN",
         "current_player": current.get("currentTurnPlayerColor"),
+        "completed_turns": current.get("completedTurns"),
+        "action_state": current.get("actionState"),
         "dice": {
             "thrown": dice.get("diceThrown", False),
             "first": dice.get("dice1"),
@@ -112,6 +121,7 @@ def _normalize_state(metadata: dict, snapshot: dict, source_sequence: int) -> di
         "tiles": map_state.get("tileHexStates", {}),
         "corners": map_state.get("tileCornerStates", {}),
         "edges": map_state.get("tileEdgeStates", {}),
+        "ports": map_state.get("portEdgeStates", {}),
         "players": state.get("playerStates", {}),
         "robber_tile": state.get("mechanicRobberState", {}).get(
             "locationTileIndex"
@@ -183,7 +193,24 @@ class ColonistWebsocketEncoder:
                     {**self.snapshot, "gameState": self.observation["raw_state"]},
                     sequence or 0,
                 )
+                # Availability pushes from earlier messages describe a decision
+                # that has now changed; do not leak them into the new state.
+                refreshed["legal_actions"] = []
+                # Diff-level turn signals: a real turn start announces itself
+                # inside this diff; merged state alone cannot distinguish a
+                # fresh turn from setup placement.
+                diff_dice = diff.get("diceState", {})
+                diff_current = diff.get("currentState", {})
+                refreshed["last_diff"] = {
+                    "dice_thrown": diff_dice.get("diceThrown")
+                    if isinstance(diff_dice, dict)
+                    else None,
+                    "turn_player": diff_current.get("currentTurnPlayerColor")
+                    if isinstance(diff_current, dict)
+                    else None,
+                }
                 self.observation.update(refreshed)
+                yield copy.deepcopy(self.observation)
                 continue
 
             if message_type in (30, 31, 33):
@@ -219,21 +246,6 @@ def feature_manifest(num_players: int = 4, map_type: str = "BASE") -> list[str]:
             f"Expected {EXPECTED_FEATURE_COUNT} features, got {len(features)}"
         )
     return features
-
-
-def _colonist_color_to_catanatron(color: Any) -> Color:
-    mapping = {
-        1: Color.RED,
-        2: Color.BLUE,
-        3: Color.WHITE,
-        4: Color.ORANGE,
-    }
-    if isinstance(color, Color):
-        return color
-    if isinstance(color, str):
-        key = int(color) if color.isdigit() else color.upper()
-        return mapping.get(key, Color.RED)
-    return mapping.get(int(color), Color.RED)
 
 
 def _axial_to_cube(x: Any, y: Any) -> tuple[int, int, int]:
@@ -273,46 +285,42 @@ def _offset_coordinate(x: int, y: int, offset: tuple[int, int, int]):
     return (x + offset[0], y + offset[1], offset[2])
 
 
-def _board_coordinate_maps(catan_map: CatanMap):
-    catan_graph = nx.Graph()
-    colonist_graph = nx.Graph()
-    for (tile_x, tile_y, _), tile in catan_map.land_tiles.items():
-        tile_key = (tile_x, tile_y)
-        catan_tile = ("tile", tile_key)
-        catan_graph.add_node(catan_tile, kind="tile", key=tile_key)
-        for node_id in tile.nodes.values():
-            catan_node = ("node", node_id)
-            catan_graph.add_node(catan_node, kind="node")
-            catan_graph.add_edge(catan_tile, catan_node)
+def _colonist_corner_tiles(x: int, y: int, z: int) -> frozenset:
+    """Cube coordinates of the three tiles meeting at a Colonist corner."""
+    if z == 0:
+        tiles = ((x, y), (x, y - 1), (x + 1, y - 1))
+    else:
+        tiles = ((x, y), (x - 1, y + 1), (x, y + 1))
+    return frozenset(_axial_to_cube(a, b) for a, b in tiles)
 
-        colonist_tile = ("tile", tile_key)
-        colonist_graph.add_node(colonist_tile, kind="tile", key=tile_key)
+
+def _board_coordinate_maps(catan_map: CatanMap):
+    """Map Colonist corner/edge coordinates to Catanatron node ids/edges.
+
+    A corner is identified by the three tiles (water included) that meet at
+    it. Both boards describe the same hex lattice, so this match is exact.
+    """
+    node_tiles: dict[int, set] = {}
+    for coordinate, tile in catan_map.tiles.items():
+        for node_id in tile.nodes.values():
+            node_tiles.setdefault(node_id, set()).add(coordinate)
+    node_by_tiles = {
+        frozenset(node_tiles[node_id]): node_id for node_id in catan_map.land_nodes
+    }
+
+    node_coordinates = {}
+    for (tile_x, tile_y, _), _tile in catan_map.land_tiles.items():
         for offset in NODE_COORDINATE_OFFSETS.values():
             coordinate = _offset_coordinate(tile_x, tile_y, offset)
-            colonist_node = ("node", coordinate)
-            colonist_graph.add_node(colonist_node, kind="node")
-            colonist_graph.add_edge(colonist_tile, colonist_node)
+            node_id = node_by_tiles.get(_colonist_corner_tiles(*coordinate))
+            if node_id is None:
+                raise EncodingError(
+                    f"No Catanatron node for Colonist corner {coordinate}"
+                )
+            node_coordinates[coordinate] = node_id
+    if len(set(node_coordinates.values())) != len(catan_map.land_nodes):
+        raise EncodingError("Colonist and Catanatron corners do not match 1:1")
 
-    def node_match(left: dict, right: dict) -> bool:
-        return left["kind"] == right["kind"] and (
-            left["kind"] != "tile" or left["key"] == right["key"]
-        )
-
-    matcher = nx.isomorphism.GraphMatcher(
-        catan_graph,
-        colonist_graph,
-        node_match=node_match,
-    )
-    try:
-        mapping = next(matcher.isomorphisms_iter())
-    except StopIteration as error:
-        raise EncodingError("Colonist and Catanatron board topologies do not match") from error
-
-    node_coordinates = {
-        colonist_node[1]: catan_node[1]
-        for catan_node, colonist_node in mapping.items()
-        if catan_node[0] == "node"
-    }
     edge_coordinates = {}
     for (tile_x, tile_y, _), _tile in catan_map.land_tiles.items():
         for edge_ref, (node_a_ref, node_b_ref) in EDGE_ENDPOINT_REFS.items():
@@ -346,207 +354,10 @@ def _board_coordinate_maps(catan_map: CatanMap):
     return node_coordinates, edge_coordinates
 
 
-def _colonist_resource_to_catanatron(resource_id: Any):
-    mapping = {
-        0: None,
-        1: WOOD,
-        2: BRICK,
-        3: SHEEP,
-        4: WHEAT,
-        5: ORE,
-    }
-    if resource_id is None:
+def _location_coordinate(raw: Any):
+    if not isinstance(raw, dict) or raw.get("x") is None or raw.get("y") is None:
         return None
-    return mapping.get(int(resource_id), None)
+    return (int(raw["x"]), int(raw["y"]), int(raw.get("z", 0)))
 
 
-def _build_tiles_from_observation(map_state: dict) -> CatanMap:
-    catan_map = CatanMap.from_template(BASE_MAP_TEMPLATE)
-    for raw_tile in map_state.get("tileHexStates", {}).values():
-        if not isinstance(raw_tile, dict):
-            continue
-        x = raw_tile.get("x")
-        y = raw_tile.get("y")
-        if x is None or y is None:
-            continue
-        coordinate = _axial_to_cube(x, y)
-        tile = catan_map.tiles.get(coordinate)
-        if not isinstance(tile, LandTile):
-            continue
-        tile.resource = _colonist_resource_to_catanatron(raw_tile.get("type"))
-        tile.number = raw_tile.get("diceNumber")
-    return catan_map
 
-
-def _apply_player_state(game: Game, players_state: dict) -> None:
-    if not isinstance(players_state, dict):
-        return
-    resource_id_to_name = {
-        1: WOOD,
-        2: BRICK,
-        3: SHEEP,
-        4: WHEAT,
-        5: ORE,
-    }
-    for color_id, state in players_state.items():
-        if not isinstance(state, dict):
-            continue
-        catan_color = _colonist_color_to_catanatron(color_id)
-        try:
-            index = game.state.colors.index(catan_color)
-        except ValueError:
-            continue
-        cards = state.get("resourceCards", {}).get("cards", [])
-        if isinstance(cards, list):
-            for resource in resource_id_to_name.values():
-                game.state.player_state[f"P{index}_{resource}_IN_HAND"] = 0
-            for card in cards:
-                resource = resource_id_to_name.get(int(card))
-                if resource is None:
-                    continue
-                game.state.player_state[f"P{index}_{resource}_IN_HAND"] += 1
-
-        victory_points = state.get("victoryPointsState", {}).get("points")
-        if victory_points is None:
-            victory_points = state.get("victoryPointsState", {}).get("value", 0)
-        game.state.player_state[f"P{index}_ACTUAL_VICTORY_POINTS"] = int(victory_points)
-        game.state.player_state[f"P{index}_VICTORY_POINTS"] = int(victory_points)
-
-
-def _apply_buildings_from_snapshot(game: Game, corners: dict, edges: dict) -> None:
-    if not isinstance(corners, dict):
-        corners = {}
-    if not isinstance(edges, dict):
-        edges = {}
-
-    node_coordinates, edge_coordinates = _board_coordinate_maps(game.state.board.map)
-
-    for corner_id, corner in corners.items():
-        if not isinstance(corner, dict):
-            continue
-        owner = corner.get("owner")
-        building_type = corner.get("buildingType") or corner.get("type")
-        if owner is None or building_type is None:
-            continue
-        catan_color = _colonist_color_to_catanatron(owner)
-        try:
-            corner_coordinate = (
-                int(corner["x"]),
-                int(corner["y"]),
-                int(corner["z"]),
-            )
-            node_id = node_coordinates[corner_coordinate]
-        except (KeyError, TypeError, ValueError):
-            continue
-
-        building = (
-            SETTLEMENT
-            if building_type in (1, "1", "SETTLEMENT", "settlement")
-            else CITY
-        )
-        game.state.board.buildings[node_id] = (catan_color, building)
-        game.state.buildings_by_color[catan_color][building].append(node_id)
-
-    for edge_id, edge in edges.items():
-        if not isinstance(edge, dict):
-            continue
-        owner = edge.get("owner")
-        if owner is None:
-            continue
-        catan_color = _colonist_color_to_catanatron(owner)
-        if edge.get("x") is None or edge.get("y") is None or edge.get("z") is None:
-            continue
-        edge_coordinate = (int(edge["x"]), int(edge["y"]), int(edge["z"]))
-        road = edge_coordinates.get(edge_coordinate)
-        if road is None:
-            continue
-        game.state.board.roads[road] = catan_color
-        game.state.board.roads[(road[1], road[0])] = catan_color
-        game.state.buildings_by_color[catan_color][ROAD].append(road)
-
-
-def build_game_from_observation(observation: dict) -> Game:
-    """Build a Catanatron Game object from a Colonist websocket observation."""
-    if observation.get("websocket_schema_version") != WEBSOCKET_SCHEMA_VERSION:
-        raise EncodingError("unexpected websocket schema version")
-
-    map_state = observation.get("raw_state", {}).get("mapState") or {}
-    board_map = _build_tiles_from_observation(map_state)
-    color_order = []
-    for raw_color in observation.get("play_order") or [1, 2, 3, 4]:
-        catan_color = _colonist_color_to_catanatron(raw_color)
-        if catan_color not in color_order:
-            color_order.append(catan_color)
-    for fallback in (Color.RED, Color.BLUE, Color.WHITE, Color.ORANGE):
-        if fallback not in color_order:
-            color_order.append(fallback)
-
-    players = [SimplePlayer(color) for color in color_order]
-    game = Game(players=players, catan_map=board_map)
-    game.state.players = players
-    game.state.colors = tuple(color_order)
-    game.state.color_to_index = {color: index for index, color in enumerate(color_order)}
-
-    current_color = _colonist_color_to_catanatron(
-        observation.get("player_color")
-        or observation.get("current_player")
-        or 1
-    )
-    game.state.current_player_index = game.state.colors.index(current_color)
-    game.state.current_turn_index = game.state.current_player_index
-    game.state.current_prompt = None
-    game.state.is_initial_build_phase = False
-
-    robber_index = observation.get("robber_tile")
-    if robber_index is not None:
-        raw_tile = map_state.get("tileHexStates", {}).get(str(robber_index))
-        if isinstance(raw_tile, dict):
-            coordinate = _axial_to_cube(raw_tile.get("x"), raw_tile.get("y"))
-            if coordinate in board_map.land_tiles:
-                game.state.board.robber_coordinate = coordinate
-
-    _apply_player_state(game, observation.get("players", {}))
-    _apply_buildings_from_snapshot(
-        game,
-        observation.get("corners", {}),
-        observation.get("edges", {}),
-    )
-    return game
-
-
-def encode_catanatron_game(game, current_color) -> dict:
-    """Encode a reconstructed Catanatron Game, not a raw websocket snapshot."""
-    from catanatron.features import create_sample_vector
-
-    names = feature_manifest(len(game.state.colors))
-    values = create_sample_vector(game, current_color, features=names)
-    if len(values) != len(names):
-        raise EncodingError(
-            f"Feature vector has {len(values)} values, expected {len(names)}"
-        )
-    return {
-        "feature_version": FEATURE_VERSION,
-        "feature_names": names,
-        "features": values,
-        "feature_length": len(values),
-    }
-
-
-def encode_observation(
-    observation: dict,
-    game_builder: Callable[[dict], Any],
-) -> dict:
-    """Build a Catanatron Game from normalized state and encode its features.
-
-    ``game_builder`` owns the source-specific board, color, corner, edge, tile,
-    resource, and player-state mappings. Keeping it injectable prevents silent
-    corruption when Colonist IDs do not match Catanatron IDs.
-    """
-    if observation.get("websocket_schema_version") != WEBSOCKET_SCHEMA_VERSION:
-        raise EncodingError("unexpected websocket schema version")
-    game = game_builder(observation)
-    current_color = game.state.current_color()
-    encoded = encode_catanatron_game(game, current_color)
-    encoded["action_encoding_version"] = ACTION_ENCODING_VERSION
-    encoded["legal_actions"] = observation.get("legal_actions", [])
-    return encoded
